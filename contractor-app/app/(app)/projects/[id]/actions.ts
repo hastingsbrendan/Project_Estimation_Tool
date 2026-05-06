@@ -261,3 +261,80 @@ export async function moveLineItem(
   ])
   revalidatePath(`/projects/${projectId}`)
 }
+
+/**
+ * Replace section order with the supplied id list. Used by drag-and-drop —
+ * we recompute order indices to match the new array position.
+ */
+export async function reorderSections(
+  projectId: string,
+  sectionIds: string[],
+): Promise<void> {
+  await requireProject(projectId)
+  // Verify every id belongs to this project before writing anything.
+  const owned = await prisma.section.findMany({
+    where: { projectId },
+    select: { id: true },
+  })
+  const ownedIds = new Set(owned.map((s) => s.id))
+  if (!sectionIds.every((id) => ownedIds.has(id))) {
+    throw new Error("Section ownership mismatch")
+  }
+  await prisma.$transaction(
+    sectionIds.map((id, i) =>
+      prisma.section.update({ where: { id }, data: { order: i } }),
+    ),
+  )
+  revalidatePath(`/projects/${projectId}`)
+}
+
+export async function reorderLineItems(
+  projectId: string,
+  sectionId: string,
+  lineItemIds: string[],
+): Promise<void> {
+  await requireProject(projectId)
+  const section = await prisma.section.findFirst({
+    where: { id: sectionId, projectId },
+  })
+  if (!section) throw new Error("Section not found")
+  const owned = await prisma.lineItem.findMany({
+    where: { sectionId },
+    select: { id: true },
+  })
+  const ownedIds = new Set(owned.map((li) => li.id))
+  if (!lineItemIds.every((id) => ownedIds.has(id))) {
+    throw new Error("Line item ownership mismatch")
+  }
+  await prisma.$transaction(
+    lineItemIds.map((id, i) =>
+      prisma.lineItem.update({ where: { id }, data: { order: i } }),
+    ),
+  )
+  revalidatePath(`/projects/${projectId}`)
+}
+
+/**
+ * Generate (or rotate) a public read-only share token for this project.
+ * Returns the new token so the client can build the URL.
+ */
+export async function enableShareLink(projectId: string): Promise<{ token: string }> {
+  await requireProject(projectId)
+  // crypto.randomUUID is on the web platform globally in Node 20+
+  const token = crypto.randomUUID().replace(/-/g, "")
+  await prisma.project.update({
+    where: { id: projectId },
+    data: { shareToken: token },
+  })
+  revalidatePath(`/projects/${projectId}/proposal`)
+  return { token }
+}
+
+export async function disableShareLink(projectId: string): Promise<void> {
+  await requireProject(projectId)
+  await prisma.project.update({
+    where: { id: projectId },
+    data: { shareToken: null },
+  })
+  revalidatePath(`/projects/${projectId}/proposal`)
+}

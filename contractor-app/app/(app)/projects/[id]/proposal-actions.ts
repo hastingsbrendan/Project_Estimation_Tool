@@ -91,8 +91,10 @@ export async function sendProposalEmail(
   })
 
   const customMessage = String(formData.get("message") ?? "").trim()
+  const brandName = "Reliable Remodeling"
   const html = `<!DOCTYPE html><html><body style="font-family: system-ui, -apple-system, sans-serif; padding: 32px; background: #faf9f6; color: #18181b;">
   <div style="max-width: 560px; margin: 0 auto; background: white; padding: 32px; border-radius: 8px; border: 1px solid #e7e5e0;">
+    <p style="margin: 0 0 24px; font-size: 11px; letter-spacing: 2px; color: #18181b; font-weight: 700;">${brandName.toUpperCase()}</p>
     <h1 style="margin: 0 0 8px; font-size: 20px;">Proposal — ${escapeHtml(project.name)}</h1>
     <p style="color: #52525b; margin: 0 0 24px;">${escapeHtml(
       project.clientName ?? "Hi there",
@@ -104,7 +106,7 @@ export async function sendProposalEmail(
     }
     <p style="line-height: 1.5; margin: 0 0 8px;"><strong>Total:</strong> ${formatCurrency(totals.total)}</p>
     <p style="line-height: 1.5; margin: 0 0 24px; color: #52525b; font-size: 13px;">Full breakdown is in the attached PDF.</p>
-    <p style="color: #71717a; font-size: 12px; margin: 24px 0 0;">Thanks,</p>
+    <p style="color: #71717a; font-size: 12px; margin: 24px 0 0;">Thanks,<br>${brandName}</p>
   </div>
 </body></html>`
 

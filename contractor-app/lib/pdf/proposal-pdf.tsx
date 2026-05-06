@@ -1,5 +1,6 @@
-import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer"
+import { Document, Page, Text, View, Image, StyleSheet } from "@react-pdf/renderer"
 import { calcEstimate, formatCurrency } from "@/lib/calc"
+import { BRAND, LOGO } from "./branding"
 
 const styles = StyleSheet.create({
   page: {
@@ -11,58 +12,66 @@ const styles = StyleSheet.create({
     color: "#18181b",
     lineHeight: 1.4,
   },
-  // Cover
+  // Cover header
+  coverHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 36,
+  },
+  logo: { width: 90, height: 90, objectFit: "contain" },
+  brandTextBlock: { textAlign: "right" },
+  brandName: { fontSize: 14, fontWeight: 700, color: BRAND.accentHex, letterSpacing: 1 },
+  brandTag: { fontSize: 9, color: BRAND.mutedHex, marginTop: 2 },
+  // Title
   cover: {
-    paddingTop: 80,
-    paddingBottom: 40,
-    borderBottomWidth: 4,
-    borderBottomColor: "#d97706",
+    paddingTop: 36,
+    paddingBottom: 32,
+    borderTopWidth: 4,
+    borderTopColor: BRAND.accentHex,
+    borderBottomWidth: 1,
+    borderBottomColor: BRAND.borderHex,
     marginBottom: 24,
   },
-  brand: { fontSize: 11, color: "#d97706", fontWeight: 700, letterSpacing: 1, marginBottom: 24 },
-  projectName: { fontSize: 28, fontWeight: 700, color: "#18181b", marginBottom: 8, lineHeight: 1.2 },
-  subline: { fontSize: 12, color: "#52525b" },
+  ribbon: { fontSize: 11, color: BRAND.accentHex, fontWeight: 700, letterSpacing: 2, marginBottom: 16 },
+  projectName: { fontSize: 26, fontWeight: 700, color: "#18181b", marginBottom: 8, lineHeight: 1.2 },
+  subline: { fontSize: 11, color: BRAND.mutedHex },
   // Sections
   sectionHeading: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: 700,
     color: "#18181b",
     textTransform: "uppercase",
-    letterSpacing: 1,
+    letterSpacing: 1.5,
     marginTop: 18,
     marginBottom: 8,
     paddingBottom: 4,
     borderBottomWidth: 1,
-    borderBottomColor: "#d6d3ce",
+    borderBottomColor: BRAND.borderHex,
   },
   paragraph: { marginBottom: 6 },
-  metaGrid: { flexDirection: "row", flexWrap: "wrap", marginBottom: 12, gap: 0 },
+  metaGrid: { flexDirection: "row", flexWrap: "wrap", marginBottom: 12 },
   metaItem: { width: "50%", marginBottom: 8 },
-  metaLabel: { fontSize: 9, color: "#71717a", textTransform: "uppercase", letterSpacing: 0.5 },
+  metaLabel: { fontSize: 9, color: BRAND.softHex, textTransform: "uppercase", letterSpacing: 0.5 },
   metaValue: { fontSize: 11, color: "#18181b", marginTop: 2 },
   // Estimate table
   table: { marginTop: 8 },
   tHeader: {
     flexDirection: "row",
-    backgroundColor: "#f5f3ef",
+    backgroundColor: BRAND.surfaceMutedHex,
     paddingVertical: 5,
     paddingHorizontal: 4,
     borderBottomWidth: 1,
-    borderBottomColor: "#d6d3ce",
+    borderBottomColor: BRAND.borderHex,
   },
   tHeaderCell: {
     fontSize: 9,
     fontWeight: 700,
-    color: "#52525b",
+    color: BRAND.mutedHex,
     textTransform: "uppercase",
     letterSpacing: 0.5,
   },
-  sectionRow: {
-    flexDirection: "row",
-    paddingTop: 8,
-    paddingBottom: 4,
-    paddingHorizontal: 4,
-  },
+  sectionRow: { flexDirection: "row", paddingTop: 8, paddingBottom: 4, paddingHorizontal: 4 },
   sectionRowName: { fontSize: 11, fontWeight: 700, color: "#18181b", flex: 1 },
   sectionRowTotal: { fontSize: 11, fontWeight: 700, color: "#18181b", textAlign: "right", width: 80 },
   liRow: {
@@ -74,37 +83,29 @@ const styles = StyleSheet.create({
   },
   liDesc: { width: "60%", paddingRight: 6, fontSize: 10 },
   liQty: { width: "10%", textAlign: "right", fontSize: 10 },
-  liUnit: { width: "10%", fontSize: 10, color: "#52525b" },
+  liUnit: { width: "10%", fontSize: 10, color: BRAND.mutedHex },
   liTotal: { width: "20%", textAlign: "right", fontSize: 10 },
   // Totals box
-  totalsBox: {
-    marginTop: 24,
-    paddingTop: 12,
-    borderTopWidth: 2,
+  totalsBox: { marginTop: 24, paddingTop: 12, borderTopWidth: 2, borderTopColor: "#18181b" },
+  totalRow: { flexDirection: "row", justifyContent: "flex-end", marginBottom: 4 },
+  totalLabel: { fontSize: 10, color: BRAND.mutedHex, marginRight: 12, width: 140, textAlign: "right" },
+  totalValue: { fontSize: 10, color: "#18181b", width: 90, textAlign: "right" },
+  grandRow: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
     borderTopColor: "#18181b",
   },
-  totalRow: { flexDirection: "row", justifyContent: "flex-end", marginBottom: 4 },
-  totalLabel: { fontSize: 10, color: "#52525b", marginRight: 12, width: 140, textAlign: "right" },
-  totalValue: { fontSize: 10, color: "#18181b", width: 90, textAlign: "right" },
-  grandRow: { flexDirection: "row", justifyContent: "flex-end", marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: "#18181b" },
   grandLabel: { fontSize: 12, fontWeight: 700, color: "#18181b", marginRight: 12, width: 140, textAlign: "right" },
-  grandValue: { fontSize: 14, fontWeight: 700, color: "#d97706", width: 90, textAlign: "right" },
-  // Footer
-  footer: {
-    position: "absolute",
-    bottom: 24,
-    left: 48,
-    right: 48,
-    fontSize: 8,
-    color: "#71717a",
-    textAlign: "center",
-  },
-  // Acceptance line
+  grandValue: { fontSize: 14, fontWeight: 700, color: BRAND.accentHex, width: 90, textAlign: "right" },
+  // Acceptance
   acceptBlock: {
     marginTop: 28,
     padding: 12,
     borderWidth: 1,
-    borderColor: "#d6d3ce",
+    borderColor: BRAND.borderHex,
     borderRadius: 4,
   },
   acceptHeading: { fontSize: 11, fontWeight: 700, marginBottom: 8 },
@@ -116,7 +117,7 @@ const styles = StyleSheet.create({
     borderBottomColor: "#18181b",
     paddingBottom: 2,
     fontSize: 9,
-    color: "#71717a",
+    color: BRAND.softHex,
   },
   acceptDate: {
     width: "40%",
@@ -124,7 +125,17 @@ const styles = StyleSheet.create({
     borderBottomColor: "#18181b",
     paddingBottom: 2,
     fontSize: 9,
-    color: "#71717a",
+    color: BRAND.softHex,
+  },
+  // Footer
+  footer: {
+    position: "absolute",
+    bottom: 24,
+    left: 48,
+    right: 48,
+    fontSize: 8,
+    color: BRAND.softHex,
+    textAlign: "center",
   },
 })
 
@@ -172,10 +183,22 @@ export function ProposalPdf({
   })
 
   return (
-    <Document title={`Proposal — ${project.name}`} author="Contractor App">
+    <Document title={`Proposal — ${project.name}`} author={BRAND.name}>
       <Page size="LETTER" style={styles.page} wrap>
+        <View style={styles.coverHeader}>
+          {LOGO ? (
+            <Image src={LOGO} style={styles.logo} />
+          ) : (
+            <Text style={{ ...styles.brandName, fontSize: 18 }}>{BRAND.name}</Text>
+          )}
+          <View style={styles.brandTextBlock}>
+            <Text style={styles.brandName}>{BRAND.name.toUpperCase()}</Text>
+            {BRAND.tagline ? <Text style={styles.brandTag}>{BRAND.tagline}</Text> : null}
+          </View>
+        </View>
+
         <View style={styles.cover}>
-          <Text style={styles.brand}>PROPOSAL</Text>
+          <Text style={styles.ribbon}>PROPOSAL</Text>
           <Text style={styles.projectName}>{project.name}</Text>
           <Text style={styles.subline}>
             {project.clientName ? `Prepared for ${project.clientName}` : "Prepared for client"}
@@ -240,9 +263,7 @@ export function ProposalPdf({
                     <Text style={styles.liDesc}>{li.description}</Text>
                     <Text style={styles.liQty}>{li.quantity}</Text>
                     <Text style={styles.liUnit}>{li.unit}</Text>
-                    <Text style={styles.liTotal}>
-                      {formatCurrency(li.quantity * li.unitPrice)}
-                    </Text>
+                    <Text style={styles.liTotal}>{formatCurrency(li.quantity * li.unitPrice)}</Text>
                   </View>
                 ))}
               </View>
@@ -293,7 +314,7 @@ export function ProposalPdf({
 
         <View style={styles.acceptBlock} wrap={false}>
           <Text style={styles.acceptHeading}>Acceptance</Text>
-          <Text style={{ fontSize: 9, color: "#52525b" }}>
+          <Text style={{ fontSize: 9, color: BRAND.mutedHex }}>
             By signing below, the client accepts the scope of work, total price, and
             payment schedule above. Any changes to the scope require a written change
             order signed by both parties.
@@ -307,7 +328,7 @@ export function ProposalPdf({
         <Text
           style={styles.footer}
           render={({ pageNumber, totalPages }) =>
-            `${project.name}  ·  Page ${pageNumber} of ${totalPages}`
+            `${BRAND.name}  ·  ${project.name}  ·  Page ${pageNumber} of ${totalPages}`
           }
           fixed
         />

@@ -4,16 +4,16 @@ import { auth } from "@/auth"
 import { prisma } from "@/lib/db"
 import { calcEstimate, formatCurrency, lineItemTotal } from "@/lib/calc"
 import { roomMetrics } from "@/lib/room"
-import { deleteProject } from "../actions"
+import { archiveProject, deleteProject, duplicateProject } from "../actions"
 import {
   addSection,
   addLineItem,
   deleteSection,
   deleteLineItem,
-  moveSection,
-  moveLineItem,
   refreshPricesFromCatalog,
   renameSection,
+  reorderLineItems,
+  reorderSections,
   updateLineItem,
   updateProjectMeta,
 } from "./actions"
@@ -23,6 +23,7 @@ import { AutoSaveForm } from "./auto-form"
 import { AddLineItemForm } from "./catalog-picker"
 import { RefreshPricesButton } from "./refresh-prices-button"
 import { PhotoGallery } from "./photo-gallery"
+import { SortableList, DraggableRow } from "./sortable"
 
 const STATUSES = [
   { value: "draft", label: "Draft", color: "bg-gray-100 text-gray-700" },
@@ -72,8 +73,6 @@ export default async function ProjectDetailPage({
   ])
   if (!project) notFound()
 
-  // Number of line items linked to a catalog entry where the catalog price
-  // has drifted — drives the visibility/count of the "Refresh prices" button.
   const allLineItemsRaw = project.sections.flatMap((s) => s.lineItems)
   const linkedLineItems = allLineItemsRaw.filter((li) => li.catalogItemId)
   const catalogById = new Map(catalog.map((c) => [c.id, c]))
@@ -96,6 +95,7 @@ export default async function ProjectDetailPage({
   })
 
   const currentStatus = STATUSES.find((s) => s.value === project.status) ?? STATUSES[0]
+  const sectionIds = project.sections.map((s) => s.id)
 
   return (
     <div className="space-y-6 pb-32">
@@ -219,7 +219,28 @@ export default async function ProjectDetailPage({
             </div>
           </div>
 
-          <div className="flex items-center justify-end pt-2">
+          <div className="flex items-center justify-between pt-2 border-t border-border flex-wrap gap-2">
+            <div className="flex items-center gap-3 text-xs">
+              <form action={duplicateProject.bind(null, project.id)}>
+                <button
+                  type="submit"
+                  className="text-foreground-muted hover:text-foreground transition-colors"
+                  title="Create a copy of this project"
+                >
+                  ⎘ Duplicate
+                </button>
+              </form>
+              <span className="text-foreground-soft">·</span>
+              <form action={archiveProject.bind(null, project.id)}>
+                <button
+                  type="submit"
+                  className="text-foreground-muted hover:text-foreground transition-colors"
+                  title="Hide from main dashboard, keep data"
+                >
+                  📦 Archive
+                </button>
+              </form>
+            </div>
             <DeleteProjectButton projectId={project.id} />
           </div>
         </AutoSaveForm>
@@ -248,10 +269,7 @@ export default async function ProjectDetailPage({
           </div>
         )}
 
-        <form
-          action={addRoom.bind(null, project.id)}
-          className="flex gap-2 items-center"
-        >
+        <form action={addRoom.bind(null, project.id)} className="flex gap-2 items-center">
           <input
             name="name"
             placeholder="Room name (e.g. Kitchen, Master bath)"
@@ -303,96 +321,93 @@ export default async function ProjectDetailPage({
           />
         </div>
 
-        <div className="space-y-4">
-          {project.sections.length === 0 ? (
-            <p className="text-sm text-foreground-soft italic px-1">
-              Add a section below to start your estimate (e.g. &ldquo;Demo&rdquo;, &ldquo;Plumbing&rdquo;,
-              &ldquo;Finish carpentry&rdquo;).
-            </p>
-          ) : (
-            project.sections.map((section, sectionIdx) => {
+        {project.sections.length === 0 ? (
+          <p className="text-sm text-foreground-soft italic px-1 mb-3">
+            Add a section below to start your estimate (e.g. &ldquo;Demo&rdquo;,
+            &ldquo;Plumbing&rdquo;, &ldquo;Finish carpentry&rdquo;).
+          </p>
+        ) : (
+          <SortableList
+            ids={sectionIds}
+            onReorder={reorderSections.bind(null, project.id)}
+            className="space-y-4"
+          >
+            {project.sections.map((section) => {
               const sectionTotal = section.lineItems.reduce(
                 (sum, li) => sum + lineItemTotal(li),
                 0,
               )
-              const isFirst = sectionIdx === 0
-              const isLast = sectionIdx === project.sections.length - 1
+              const lineItemIds = section.lineItems.map((li) => li.id)
               return (
-                <div
-                  key={section.id}
-                  className="bg-surface border border-border rounded-lg"
-                >
-                  <div className="flex items-center gap-2 px-4 py-3 border-b border-border bg-surface-muted rounded-t-lg">
-                    <ReorderButtons
-                      moveAction={moveSection.bind(null, project.id, section.id)}
-                      isFirst={isFirst}
-                      isLast={isLast}
-                    />
-                    <AutoSaveForm
-                      action={renameSection.bind(null, project.id, section.id)}
-                      className="flex-1"
-                    >
-                      <input
-                        name="name"
-                        defaultValue={section.name}
-                        className="w-full font-semibold text-foreground bg-transparent border-b border-transparent hover:border-border focus:border-accent focus:outline-none"
-                      />
-                    </AutoSaveForm>
-                    <span className="text-sm font-medium text-foreground tabular-nums">
-                      {formatCurrency(sectionTotal)}
-                    </span>
-                    <form action={deleteSection.bind(null, project.id, section.id)}>
-                      <button
-                        type="submit"
-                        className="text-xs text-foreground-soft hover:text-danger transition-colors"
-                        title="Delete section"
+                <DraggableRow key={section.id} id={section.id} handlePosition="absolute">
+                  <div className="bg-surface border border-border rounded-lg">
+                    <div className="flex items-center gap-2 px-4 py-3 border-b border-border bg-surface-muted rounded-t-lg">
+                      <AutoSaveForm
+                        action={renameSection.bind(null, project.id, section.id)}
+                        className="flex-1"
                       >
-                        ✕
-                      </button>
-                    </form>
-                  </div>
-
-                  {section.lineItems.length > 0 && (
-                    <div className="divide-y divide-border">
-                      {section.lineItems.map((item, itemIdx) => (
-                        <LineItemRow
-                          key={item.id}
-                          projectId={project.id}
-                          item={item}
-                          isFirst={itemIdx === 0}
-                          isLast={itemIdx === section.lineItems.length - 1}
+                        <input
+                          name="name"
+                          defaultValue={section.name}
+                          className="w-full font-semibold text-foreground bg-transparent border-b border-transparent hover:border-border focus:border-accent focus:outline-none"
                         />
-                      ))}
+                      </AutoSaveForm>
+                      <span className="text-sm font-medium text-foreground tabular-nums">
+                        {formatCurrency(sectionTotal)}
+                      </span>
+                      <form action={deleteSection.bind(null, project.id, section.id)}>
+                        <button
+                          type="submit"
+                          className="text-xs text-foreground-soft hover:text-danger transition-colors"
+                          title="Delete section"
+                        >
+                          ✕
+                        </button>
+                      </form>
                     </div>
-                  )}
 
-                  <AddLineItemForm
-                    action={addLineItem.bind(null, project.id, section.id)}
-                    catalog={catalog}
-                  />
-                </div>
+                    {section.lineItems.length > 0 && (
+                      <SortableList
+                        ids={lineItemIds}
+                        onReorder={reorderLineItems.bind(null, project.id, section.id)}
+                        className="divide-y divide-border"
+                      >
+                        {section.lineItems.map((item) => (
+                          <DraggableRow key={item.id} id={item.id} handlePosition="leading">
+                            <LineItemRow projectId={project.id} item={item} />
+                          </DraggableRow>
+                        ))}
+                      </SortableList>
+                    )}
+
+                    <AddLineItemForm
+                      action={addLineItem.bind(null, project.id, section.id)}
+                      catalog={catalog}
+                    />
+                  </div>
+                </DraggableRow>
               )
-            })
-          )}
+            })}
+          </SortableList>
+        )}
 
-          {/* Add section */}
-          <form
-            action={addSection.bind(null, project.id)}
-            className="flex gap-2 items-center"
+        {/* Add section */}
+        <form
+          action={addSection.bind(null, project.id)}
+          className="flex gap-2 items-center mt-4"
+        >
+          <input
+            name="name"
+            placeholder="Section name (e.g. Demo, Plumbing)"
+            className="flex-1 border border-border rounded-lg px-3 py-2 text-sm bg-surface focus:outline-none focus:ring-2 focus:ring-accent"
+          />
+          <button
+            type="submit"
+            className="px-4 py-2 bg-surface border border-border text-foreground rounded-lg text-sm font-medium hover:bg-accent-soft hover:border-accent"
           >
-            <input
-              name="name"
-              placeholder="Section name (e.g. Demo, Plumbing)"
-              className="flex-1 border border-border rounded-lg px-3 py-2 text-sm bg-surface focus:outline-none focus:ring-2 focus:ring-accent"
-            />
-            <button
-              type="submit"
-              className="px-4 py-2 bg-surface border border-border text-foreground rounded-lg text-sm font-medium hover:bg-accent-soft hover:border-accent"
-            >
-              + Section
-            </button>
-          </form>
-        </div>
+            + Section
+          </button>
+        </form>
       </section>
 
       {/* Sticky totals */}
@@ -400,15 +415,21 @@ export default async function ProjectDetailPage({
         <div className="max-w-4xl mx-auto px-4 sm:px-6 py-3 grid grid-cols-2 sm:grid-cols-5 gap-3 text-sm">
           <div>
             <p className="text-xs text-foreground-soft">Materials</p>
-            <p className="font-medium tabular-nums text-foreground">{formatCurrency(totals.materialSubtotal)}</p>
+            <p className="font-medium tabular-nums text-foreground">
+              {formatCurrency(totals.materialSubtotal)}
+            </p>
           </div>
           <div>
             <p className="text-xs text-foreground-soft">Labor</p>
-            <p className="font-medium tabular-nums text-foreground">{formatCurrency(totals.laborSubtotal)}</p>
+            <p className="font-medium tabular-nums text-foreground">
+              {formatCurrency(totals.laborSubtotal)}
+            </p>
           </div>
           <div className="hidden sm:block">
             <p className="text-xs text-foreground-soft">Markup ({project.markupPct}%)</p>
-            <p className="font-medium tabular-nums text-foreground">{formatCurrency(totals.markup)}</p>
+            <p className="font-medium tabular-nums text-foreground">
+              {formatCurrency(totals.markup)}
+            </p>
           </div>
           <div className="hidden sm:block">
             <p className="text-xs text-foreground-soft">Tax ({project.taxRate}%)</p>
@@ -416,7 +437,9 @@ export default async function ProjectDetailPage({
           </div>
           <div className="col-span-2 sm:col-span-1 text-right">
             <p className="text-xs text-foreground-soft">Total</p>
-            <p className="text-lg font-bold tabular-nums text-accent">{formatCurrency(totals.total)}</p>
+            <p className="text-lg font-bold tabular-nums text-accent">
+              {formatCurrency(totals.total)}
+            </p>
           </div>
         </div>
       </div>
@@ -441,10 +464,7 @@ function RoomCard({
   const metrics = roomMetrics(room)
   return (
     <div className="bg-surface border border-border rounded-lg p-4">
-      <AutoSaveForm
-        action={updateRoom.bind(null, projectId, room.id)}
-        className="space-y-3"
-      >
+      <AutoSaveForm action={updateRoom.bind(null, projectId, room.id)} className="space-y-3">
         <div className="flex items-center gap-2">
           <input
             name="name"
@@ -452,25 +472,11 @@ function RoomCard({
             className="flex-1 font-semibold text-foreground bg-transparent border-b border-transparent hover:border-border focus:border-accent focus:outline-none py-0.5"
           />
         </div>
-
         <div className="grid grid-cols-3 gap-2">
-          <LabeledInput
-            name="lengthFt"
-            label="Length (ft)"
-            defaultValue={room.lengthFt ?? ""}
-          />
-          <LabeledInput
-            name="widthFt"
-            label="Width (ft)"
-            defaultValue={room.widthFt ?? ""}
-          />
-          <LabeledInput
-            name="heightFt"
-            label="Height (ft)"
-            defaultValue={room.heightFt}
-          />
+          <LabeledInput name="lengthFt" label="Length (ft)" defaultValue={room.lengthFt ?? ""} />
+          <LabeledInput name="widthFt" label="Width (ft)" defaultValue={room.widthFt ?? ""} />
+          <LabeledInput name="heightFt" label="Height (ft)" defaultValue={room.heightFt} />
         </div>
-
         <div>
           <label className="block text-[10px] font-medium text-foreground-soft uppercase tracking-wider mb-1">
             Notes
@@ -483,7 +489,6 @@ function RoomCard({
             className="w-full text-xs text-foreground border border-border rounded px-2 py-1.5 bg-surface focus:outline-none focus:ring-1 focus:ring-accent resize-none"
           />
         </div>
-
         {(metrics.floorAreaSqft || metrics.perimeterFt) && (
           <dl className="grid grid-cols-3 gap-2 pt-2 border-t border-border text-xs">
             <div>
@@ -551,8 +556,6 @@ function LabeledInput({
 function LineItemRow({
   projectId,
   item,
-  isFirst,
-  isLast,
 }: {
   projectId: string
   item: {
@@ -563,23 +566,14 @@ function LineItemRow({
     unitPrice: number
     kind: string
   }
-  isFirst: boolean
-  isLast: boolean
 }) {
   const total = lineItemTotal(item)
   return (
-    <div className="px-4 py-2 hover:bg-surface-muted transition-colors group">
+    <div className="px-2 py-2 hover:bg-surface-muted transition-colors group">
       <div className="grid grid-cols-12 gap-2 items-center text-sm">
-        <div className="col-span-1 flex items-center">
-          <ReorderButtons
-            moveAction={moveLineItem.bind(null, projectId, item.id)}
-            isFirst={isFirst}
-            isLast={isLast}
-          />
-        </div>
         <AutoSaveForm
           action={updateLineItem.bind(null, projectId, item.id)}
-          className="col-span-10 grid grid-cols-12 gap-2 items-center"
+          className="col-span-11 grid grid-cols-12 gap-2 items-center"
         >
           <div className="col-span-12 sm:col-span-5">
             <input
@@ -639,41 +633,6 @@ function LineItemRow({
           </form>
         </div>
       </div>
-    </div>
-  )
-}
-
-function ReorderButtons({
-  moveAction,
-  isFirst,
-  isLast,
-}: {
-  moveAction: (direction: "up" | "down") => Promise<void>
-  isFirst: boolean
-  isLast: boolean
-}) {
-  return (
-    <div className="flex flex-col gap-0.5">
-      <form action={moveAction.bind(null, "up")}>
-        <button
-          type="submit"
-          disabled={isFirst}
-          className="block text-xs text-foreground-soft hover:text-foreground disabled:opacity-20 disabled:cursor-not-allowed leading-none"
-          title="Move up"
-        >
-          ▲
-        </button>
-      </form>
-      <form action={moveAction.bind(null, "down")}>
-        <button
-          type="submit"
-          disabled={isLast}
-          className="block text-xs text-foreground-soft hover:text-foreground disabled:opacity-20 disabled:cursor-not-allowed leading-none"
-          title="Move down"
-        >
-          ▼
-        </button>
-      </form>
     </div>
   )
 }

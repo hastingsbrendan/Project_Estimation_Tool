@@ -1,6 +1,7 @@
-import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer"
+import { Document, Page, Text, View, Image, StyleSheet } from "@react-pdf/renderer"
 import { formatCurrency } from "@/lib/calc"
 import type { MaterialRow } from "@/lib/materials"
+import { BRAND, LOGO } from "./branding"
 
 const styles = StyleSheet.create({
   page: {
@@ -11,28 +12,44 @@ const styles = StyleSheet.create({
     fontFamily: "Helvetica",
     color: "#18181b",
   },
-  header: {
-    borderBottomWidth: 1,
-    borderBottomColor: "#d97706",
-    paddingBottom: 8,
+  // Top brand bar
+  brandBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     marginBottom: 16,
   },
-  title: { fontSize: 18, fontWeight: 700, color: "#18181b", marginBottom: 4 },
-  subtitle: { fontSize: 10, color: "#52525b" },
+  logo: { width: 56, height: 56, objectFit: "contain" },
+  brandTextBlock: { textAlign: "right" },
+  brandName: { fontSize: 12, fontWeight: 700, color: BRAND.accentHex, letterSpacing: 1 },
+  brandTag: { fontSize: 8, color: BRAND.softHex, marginTop: 2 },
+  // Header
+  header: {
+    borderTopWidth: 3,
+    borderTopColor: BRAND.accentHex,
+    borderBottomWidth: 1,
+    borderBottomColor: BRAND.borderHex,
+    paddingVertical: 10,
+    marginBottom: 16,
+  },
+  ribbon: { fontSize: 9, color: BRAND.accentHex, fontWeight: 700, letterSpacing: 2, marginBottom: 4 },
+  title: { fontSize: 16, fontWeight: 700, color: "#18181b", marginBottom: 2 },
+  subtitle: { fontSize: 10, color: BRAND.mutedHex },
+  // Table
   tableHeader: {
     flexDirection: "row",
-    backgroundColor: "#f5f3ef",
+    backgroundColor: BRAND.surfaceMutedHex,
     paddingVertical: 6,
     paddingHorizontal: 4,
     borderBottomWidth: 1,
-    borderBottomColor: "#d6d3ce",
+    borderBottomColor: BRAND.borderHex,
     marginTop: 8,
   },
   tableHeaderCell: {
     fontSize: 9,
     fontWeight: 700,
     textTransform: "uppercase",
-    color: "#52525b",
+    color: BRAND.mutedHex,
     letterSpacing: 0.5,
   },
   row: {
@@ -43,8 +60,6 @@ const styles = StyleSheet.create({
     borderBottomColor: "#e7e5e0",
   },
   cell: { fontSize: 10 },
-  cellRight: { fontSize: 10, textAlign: "right" },
-  // Column widths (sum = 100)
   colDesc: { width: "50%", paddingRight: 6 },
   colQty: { width: "12%", textAlign: "right" },
   colUnit: { width: "10%" },
@@ -59,20 +74,15 @@ const styles = StyleSheet.create({
     borderTopColor: "#18181b",
   },
   totalLabel: { fontSize: 11, fontWeight: 700, marginRight: 12 },
-  totalValue: { fontSize: 12, fontWeight: 700, color: "#d97706" },
-  notes: {
-    marginTop: 24,
-    fontSize: 9,
-    color: "#71717a",
-    fontStyle: "italic",
-  },
+  totalValue: { fontSize: 12, fontWeight: 700, color: BRAND.accentHex },
+  notes: { marginTop: 24, fontSize: 9, color: BRAND.softHex, fontStyle: "italic" },
   footer: {
     position: "absolute",
     bottom: 24,
     left: 36,
     right: 36,
     fontSize: 8,
-    color: "#71717a",
+    color: BRAND.softHex,
     textAlign: "center",
   },
 })
@@ -91,13 +101,23 @@ export function MaterialsPdf({
   total: number
 }) {
   return (
-    <Document
-      title={`Materials — ${projectName}`}
-      author="Contractor App"
-    >
+    <Document title={`Materials — ${projectName}`} author={BRAND.name}>
       <Page size="LETTER" style={styles.page} wrap>
+        <View style={styles.brandBar}>
+          {LOGO ? (
+            <Image src={LOGO} style={styles.logo} />
+          ) : (
+            <Text style={{ ...styles.brandName, fontSize: 14 }}>{BRAND.name}</Text>
+          )}
+          <View style={styles.brandTextBlock}>
+            <Text style={styles.brandName}>{BRAND.name.toUpperCase()}</Text>
+            {BRAND.tagline ? <Text style={styles.brandTag}>{BRAND.tagline}</Text> : null}
+          </View>
+        </View>
+
         <View style={styles.header}>
-          <Text style={styles.title}>{projectName} — Material List</Text>
+          <Text style={styles.ribbon}>MATERIAL LIST</Text>
+          <Text style={styles.title}>{projectName}</Text>
           <Text style={styles.subtitle}>
             {clientName ? `Client: ${clientName}  ·  ` : ""}
             Generated {generatedAt.toLocaleDateString("en-US", {
@@ -117,7 +137,7 @@ export function MaterialsPdf({
         </View>
 
         {rows.length === 0 ? (
-          <Text style={{ ...styles.cell, marginTop: 12, fontStyle: "italic", color: "#71717a" }}>
+          <Text style={{ ...styles.cell, marginTop: 12, fontStyle: "italic", color: BRAND.softHex }}>
             No material line items in this project yet.
           </Text>
         ) : (
@@ -147,7 +167,7 @@ export function MaterialsPdf({
         <Text
           style={styles.footer}
           render={({ pageNumber, totalPages }) =>
-            `Page ${pageNumber} of ${totalPages}`
+            `${BRAND.name}  ·  Page ${pageNumber} of ${totalPages}`
           }
           fixed
         />

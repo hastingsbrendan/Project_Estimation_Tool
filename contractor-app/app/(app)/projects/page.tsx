@@ -12,7 +12,14 @@ const STATUS_COLORS: Record<string, string> = {
   lost: "bg-red-100 text-red-800",
 }
 
-export default async function ProjectsPage() {
+export default async function ProjectsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ view?: string }>
+}) {
+  const sp = await searchParams
+  const showArchived = sp?.view === "archived"
+
   const session = await auth()
   const user = session?.user?.email
     ? await prisma.user.findUnique({ where: { email: session.user.email } })
@@ -20,7 +27,7 @@ export default async function ProjectsPage() {
 
   const projects = user
     ? await prisma.project.findMany({
-        where: { userId: user.id },
+        where: { userId: user.id, archived: showArchived },
         orderBy: { updatedAt: "desc" },
         include: {
           sections: { include: { lineItems: true } },
@@ -28,33 +35,71 @@ export default async function ProjectsPage() {
       })
     : []
 
+  const archivedCount = user
+    ? await prisma.project.count({ where: { userId: user.id, archived: true } })
+    : 0
+
   return (
     <>
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-xl font-bold text-foreground">Projects</h1>
-        <Link
-          href="/projects/new"
-          className="inline-flex items-center gap-2 bg-accent text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-accent-hover transition-colors"
-        >
-          <span>+</span> New Project
-        </Link>
-      </div>
-
-      {projects.length === 0 ? (
-        <div className="text-center py-16 px-4 bg-surface border border-border rounded-lg">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-accent-soft rounded-2xl mb-4">
-            <span className="text-3xl">📋</span>
-          </div>
-          <h2 className="text-lg font-semibold text-foreground mb-2">No projects yet</h2>
-          <p className="text-sm text-foreground-muted max-w-xs mx-auto mb-6">
-            Create your first project to start building an estimate.
-          </p>
+      <div className="flex items-center justify-between mb-2">
+        <h1 className="text-xl font-bold text-foreground">
+          {showArchived ? "Archived projects" : "Projects"}
+        </h1>
+        {!showArchived && (
           <Link
             href="/projects/new"
             className="inline-flex items-center gap-2 bg-accent text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-accent-hover transition-colors"
           >
             <span>+</span> New Project
           </Link>
+        )}
+      </div>
+
+      {/* Tabs */}
+      <div className="flex items-center gap-3 mb-6 text-sm border-b border-border">
+        <Link
+          href="/projects"
+          className={`pb-2 -mb-px border-b-2 ${
+            !showArchived
+              ? "border-accent text-foreground font-medium"
+              : "border-transparent text-foreground-muted hover:text-foreground"
+          }`}
+        >
+          Active
+        </Link>
+        <Link
+          href="/projects?view=archived"
+          className={`pb-2 -mb-px border-b-2 ${
+            showArchived
+              ? "border-accent text-foreground font-medium"
+              : "border-transparent text-foreground-muted hover:text-foreground"
+          }`}
+        >
+          Archived {archivedCount > 0 && <span className="text-foreground-soft tabular-nums">({archivedCount})</span>}
+        </Link>
+      </div>
+
+      {projects.length === 0 ? (
+        <div className="text-center py-16 px-4 bg-surface border border-border rounded-lg">
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-accent-soft rounded-2xl mb-4">
+            <span className="text-3xl">{showArchived ? "📦" : "📋"}</span>
+          </div>
+          <h2 className="text-lg font-semibold text-foreground mb-2">
+            {showArchived ? "No archived projects" : "No projects yet"}
+          </h2>
+          <p className="text-sm text-foreground-muted max-w-xs mx-auto mb-6">
+            {showArchived
+              ? "Projects you archive will show up here."
+              : "Create your first project to start building an estimate."}
+          </p>
+          {!showArchived && (
+            <Link
+              href="/projects/new"
+              className="inline-flex items-center gap-2 bg-accent text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-accent-hover transition-colors"
+            >
+              <span>+</span> New Project
+            </Link>
+          )}
         </div>
       ) : (
         <ul className="divide-y divide-border border border-border rounded-lg overflow-hidden bg-surface">

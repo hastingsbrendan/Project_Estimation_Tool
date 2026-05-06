@@ -1,6 +1,8 @@
 import { auth, signOut } from "@/auth"
 import Link from "next/link"
 import { redirect } from "next/navigation"
+import { FeedbackButton } from "./feedback-button"
+import { sendFeedback } from "./feedback-actions"
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const session = await auth()
@@ -49,6 +51,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         </div>
       </header>
       <main className="flex-1 max-w-4xl mx-auto w-full px-4 sm:px-6 py-8">{children}</main>
+      <FeedbackButton action={sendFeedback} />
     </div>
   )
 }

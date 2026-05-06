@@ -67,6 +67,7 @@ model Project {
   clientEmail     String?
   address         String?
   status          String   @default("draft") // draft | sent | accepted | rejected | won | lost
+  archived        Boolean  @default(false) // hide from main dashboard, keeps data intact
   taxRate         Float    @default(0) // percent (0-100); applies to materials only
   markupPct       Float    @default(0) // percent (0-100); applies to subtotal
   notes           String? // free-form jobsite notes

@@ -4,8 +4,9 @@ import { auth } from "@/auth"
 import { prisma } from "@/lib/db"
 import { calcEstimate, formatCurrency } from "@/lib/calc"
 import { AutoSaveForm } from "../auto-form"
-import { updateProposalContent } from "../actions"
+import { updateProposalContent, enableShareLink, disableShareLink } from "../actions"
 import { SendProposalForm } from "./send-proposal-form"
+import { ShareLinkPanel } from "./share-link"
 import { sendProposalEmail } from "../proposal-actions"
 
 export default async function ProposalPage({
@@ -167,6 +168,13 @@ export default async function ProposalPage({
           </div>
         </div>
       </div>
+
+      <ShareLinkPanel
+        projectId={project.id}
+        initialToken={project.shareToken}
+        enableAction={enableShareLink}
+        disableAction={disableShareLink}
+      />
 
       <SendProposalForm
         defaultEmail={project.clientEmail}
