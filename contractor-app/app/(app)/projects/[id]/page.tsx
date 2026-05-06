@@ -232,9 +232,9 @@ export default async function ProjectDetailPage({
               return (
                 <div
                   key={section.id}
-                  className="bg-surface border border-border rounded-lg overflow-hidden"
+                  className="bg-surface border border-border rounded-lg"
                 >
-                  <div className="flex items-center gap-2 px-4 py-3 border-b border-border bg-surface-muted">
+                  <div className="flex items-center gap-2 px-4 py-3 border-b border-border bg-surface-muted rounded-t-lg">
                     <ReorderButtons
                       moveAction={moveSection.bind(null, project.id, section.id)}
                       isFirst={isFirst}

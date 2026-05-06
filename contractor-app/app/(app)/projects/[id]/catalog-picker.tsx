@@ -59,7 +59,7 @@ export function AddLineItemForm({ action }: { action: AddLineItemAction }) {
         setQuery("")
         setOpen(false)
       }}
-      className="px-4 py-3 border-t border-border bg-surface-muted/50"
+      className="px-4 py-3 border-t border-border bg-surface-muted/50 rounded-b-lg"
     >
       <div className="grid grid-cols-12 gap-2 items-end text-sm">
         <div className="col-span-12 sm:col-span-5 relative">
