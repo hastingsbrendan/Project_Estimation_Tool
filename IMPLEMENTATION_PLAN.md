@@ -351,6 +351,16 @@ These are headline differentiators if they work. Architectural notes:
 - **Cost & rate limits.** Per-agent daily action cap; alert before any spend >$100 from AGT-01.
 - **Supplier coverage starts narrow.** AGT-01 launches with Home Depot Pro only (cleanest API + Pro account benefits); generalize after.
 
+### Phase 2 — Home Depot Pro Xtra Catalog Sync (CAT-05, NEW backlog)
+
+Pull catalog items from a contractor's existing Home Depot Pro Xtra account so the per-user catalog reflects real SKUs and prices they actually buy. Decided as a backlog item alongside the in-app catalog editor.
+
+- **Discovery work needed first.** Home Depot's Pro Xtra B2B/Commerce API is gated and typically requires a business agreement. Confirm: (a) whether a self-employed contractor with a personal Pro Xtra account can authorize an OAuth-style read-only token, or (b) whether the only viable path is forwarded order-confirmation emails (works today, no API needed).
+- **Email path (preferred MVP):** Each user gets a unique forwarding address (e.g. `receipts+ab12cd@yourapp.com`). User configures a Gmail filter to auto-forward Home Depot order-confirmation emails. Inbound webhook receives the email → Claude vision parses line items → propose adds/updates against the user's catalog with `confirm before applying` UX. Same parsing pipeline that powers REC-01..06 receipt reading; reuse it.
+- **API path (later):** If/when an OAuth path is available, add a "Connect Home Depot" button on the catalog page. Periodic sync pulls last N orders, dedupes against existing catalog entries, surfaces price drift.
+- **Out of scope for the contractor app to solve:** Home Depot login flows, MFA. Always defer to the user's own session.
+- **Other suppliers:** same pipeline applies to Lowe's, Menard's, Ace, Amazon Business — list catalog items by SKU + supplier on the catalog row.
+
 ### Phase 4 — Shared Catalog (CAT-04, backlog)
 
 Held as a backlog item per scope decision: prototype keeps catalogs isolated per user. Revisit only if friends explicitly ask for a shared / community catalog. If revived: opt-in, items flagged as "community" vs. "private", per-user overrides preserved, contributor attribution.

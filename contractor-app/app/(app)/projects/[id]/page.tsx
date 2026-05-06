@@ -12,6 +12,7 @@ import {
   deleteLineItem,
   moveSection,
   moveLineItem,
+  refreshPricesFromCatalog,
   renameSection,
   updateLineItem,
   updateProjectMeta,
@@ -19,6 +20,7 @@ import {
 import { addRoom, updateRoom, deleteRoom } from "./room-actions"
 import { AutoSaveForm } from "./auto-form"
 import { AddLineItemForm } from "./catalog-picker"
+import { RefreshPricesButton } from "./refresh-prices-button"
 
 const STATUSES = [
   { value: "draft", label: "Draft", color: "bg-gray-100 text-gray-700" },
@@ -41,17 +43,41 @@ export default async function ProjectDetailPage({
   const user = await prisma.user.findUnique({ where: { email: session.user.email } })
   if (!user) notFound()
 
-  const project = await prisma.project.findFirst({
-    where: { id, userId: user.id },
-    include: {
-      sections: {
-        orderBy: { order: "asc" },
-        include: { lineItems: { orderBy: { order: "asc" } } },
+  const [project, catalog] = await Promise.all([
+    prisma.project.findFirst({
+      where: { id, userId: user.id },
+      include: {
+        sections: {
+          orderBy: { order: "asc" },
+          include: { lineItems: { orderBy: { order: "asc" } } },
+        },
+        rooms: { orderBy: { order: "asc" } },
       },
-      rooms: { orderBy: { order: "asc" } },
-    },
-  })
+    }),
+    prisma.catalogItem.findMany({
+      where: { userId: user.id, archived: false },
+      orderBy: { description: "asc" },
+      select: {
+        id: true,
+        trade: true,
+        description: true,
+        unit: true,
+        unitPrice: true,
+        kind: true,
+      },
+    }),
+  ])
   if (!project) notFound()
+
+  // Number of line items linked to a catalog entry where the catalog price
+  // has drifted — drives the visibility/count of the "Refresh prices" button.
+  const allLineItemsRaw = project.sections.flatMap((s) => s.lineItems)
+  const linkedLineItems = allLineItemsRaw.filter((li) => li.catalogItemId)
+  const catalogById = new Map(catalog.map((c) => [c.id, c]))
+  const refreshableCount = linkedLineItems.filter((li) => {
+    const c = catalogById.get(li.catalogItemId!)
+    return c && (c.unitPrice !== li.unitPrice || c.unit !== li.unit || c.kind !== li.kind)
+  }).length
 
   const allLineItems = project.sections.flatMap((s) =>
     s.lineItems.map((li) => ({
@@ -213,7 +239,14 @@ export default async function ProjectDetailPage({
 
       {/* Sections */}
       <section>
-        <h2 className="text-base font-semibold text-foreground mb-3">Estimate</h2>
+        <div className="flex items-baseline justify-between mb-3 gap-3 flex-wrap">
+          <h2 className="text-base font-semibold text-foreground">Estimate</h2>
+          <RefreshPricesButton
+            refreshableCount={refreshableCount}
+            totalLinked={linkedLineItems.length}
+            action={refreshPricesFromCatalog.bind(null, project.id)}
+          />
+        </div>
 
         <div className="space-y-4">
           {project.sections.length === 0 ? (
@@ -278,7 +311,10 @@ export default async function ProjectDetailPage({
                     </div>
                   )}
 
-                  <AddLineItemForm action={addLineItem.bind(null, project.id, section.id)} />
+                  <AddLineItemForm
+                    action={addLineItem.bind(null, project.id, section.id)}
+                    catalog={catalog}
+                  />
                 </div>
               )
             })

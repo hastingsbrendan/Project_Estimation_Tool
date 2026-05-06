@@ -17,9 +17,10 @@ model User {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  accounts Account[]
-  sessions Session[]
-  projects Project[]
+  accounts     Account[]
+  sessions     Session[]
+  projects     Project[]
+  catalogItems CatalogItem[]
 }
 
 model Account {
@@ -110,27 +111,39 @@ model Section {
 }
 
 model LineItem {
-  id          String  @id @default(cuid())
-  description String
-  quantity    Float   @default(1)
-  unit        String  @default("ea") // ea, sqft, lf, hr, etc
-  unitPrice   Float   @default(0)
-  kind        String  @default("material") // "material" | "labor"
-  order       Int     @default(0)
-  sectionId   String
+  id            String  @id @default(cuid())
+  description   String
+  quantity      Float   @default(1)
+  unit          String  @default("ea") // ea, sqft, lf, hr, etc
+  unitPrice     Float   @default(0)
+  kind          String  @default("material") // "material" | "labor"
+  order         Int     @default(0)
+  sectionId     String
+  catalogItemId String? // optional FK; null when line item was hand-typed
 
-  section Section @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  section     Section      @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  catalogItem CatalogItem? @relation(fields: [catalogItemId], references: [id], onDelete: SetNull)
 
   @@index([sectionId])
+  @@index([catalogItemId])
 }
 
 model CatalogItem {
-  id          String @id @default(cuid())
-  trade       String // demo, framing, plumbing, electrical, drywall, finish
+  id          String   @id @default(cuid())
+  trade       String   // demo, framing, plumbing, electrical, drywall, finish
   description String
-  unit        String @default("ea")
-  unitPrice   Float  @default(0)
-  kind        String @default("material") // "material" | "labor"
+  unit        String   @default("ea")
+  unitPrice   Float    @default(0)
+  kind        String   @default("material") // "material" | "labor"
+  notes       String?
+  archived    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  userId      String
 
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lineItems LineItem[]
+
+  @@index([userId])
   @@index([trade])
 }

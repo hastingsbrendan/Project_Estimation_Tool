@@ -1,7 +1,15 @@
 "use client"
 
 import { useId, useMemo, useRef, useState } from "react"
-import { CATALOG_SEED } from "@/seeds/catalog"
+
+export type CatalogPickerItem = {
+  id: string
+  trade: string
+  description: string
+  unit: string
+  unitPrice: number
+  kind: string
+}
 
 type AddLineItemAction = (formData: FormData) => Promise<void>
 
@@ -15,15 +23,23 @@ const TRADE_LABELS: Record<string, string> = {
 }
 
 /**
- * Add Line Item form with a catalog typeahead. Selecting a catalog item
- * fills in the description, unit, unitPrice, and kind fields. The user can
- * still type a custom item from scratch by ignoring the dropdown.
+ * Add Line Item form with a catalog typeahead. Catalog items come from the
+ * user's saved catalog (server-fetched, passed in as a prop). Selecting a
+ * catalog item fills in description/unit/unitPrice/kind AND records the
+ * catalogItemId so we can offer "refresh prices" later.
  */
-export function AddLineItemForm({ action }: { action: AddLineItemAction }) {
+export function AddLineItemForm({
+  action,
+  catalog,
+}: {
+  action: AddLineItemAction
+  catalog: CatalogPickerItem[]
+}) {
   const id = useId()
   const [query, setQuery] = useState("")
   const [tradeFilter, setTradeFilter] = useState<string>("")
   const [open, setOpen] = useState(false)
+  const [selectedId, setSelectedId] = useState<string>("")
   const descRef = useRef<HTMLInputElement>(null)
   const unitRef = useRef<HTMLInputElement>(null)
   const priceRef = useRef<HTMLInputElement>(null)
@@ -32,16 +48,17 @@ export function AddLineItemForm({ action }: { action: AddLineItemAction }) {
 
   const matches = useMemo(() => {
     const q = query.trim().toLowerCase()
-    let pool = CATALOG_SEED
+    let pool = catalog
     if (tradeFilter) pool = pool.filter((c) => c.trade === tradeFilter)
     if (q.length === 0) return pool.slice(0, 8)
     return pool
       .filter((c) => c.description.toLowerCase().includes(q))
       .slice(0, 12)
-  }, [query, tradeFilter])
+  }, [catalog, query, tradeFilter])
 
-  const pick = (item: (typeof CATALOG_SEED)[number]) => {
+  const pick = (item: CatalogPickerItem) => {
     setQuery(item.description)
+    setSelectedId(item.id)
     if (descRef.current) descRef.current.value = item.description
     if (unitRef.current) unitRef.current.value = item.unit
     if (priceRef.current) priceRef.current.value = String(item.unitPrice)
@@ -54,13 +71,17 @@ export function AddLineItemForm({ action }: { action: AddLineItemAction }) {
       ref={formRef}
       action={async (fd) => {
         await action(fd)
-        // Reset form fields after successful submit
         formRef.current?.reset()
         setQuery("")
+        setSelectedId("")
         setOpen(false)
       }}
       className="px-4 py-3 border-t border-border bg-surface-muted/50 rounded-b-lg"
     >
+      {/* Hidden field carries the catalogItemId IF the user picked from the dropdown.
+          When the user types a custom description, we clear this so the
+          server records null (no FK). */}
+      <input type="hidden" name="catalogItemId" value={selectedId} />
       <div className="grid grid-cols-12 gap-2 items-end text-sm">
         <div className="col-span-12 sm:col-span-5 relative">
           <label htmlFor={`${id}-desc`} className="block text-xs text-foreground-muted mb-0.5">
@@ -74,11 +95,16 @@ export function AddLineItemForm({ action }: { action: AddLineItemAction }) {
             value={query}
             onChange={(e) => {
               setQuery(e.target.value)
+              setSelectedId("") // typing breaks the catalog link
               setOpen(true)
             }}
             onFocus={() => setOpen(true)}
             onBlur={() => setTimeout(() => setOpen(false), 150)}
-            placeholder="Search catalog or type custom…"
+            placeholder={
+              catalog.length === 0
+                ? "Type a description (catalog is empty)…"
+                : "Search catalog or type custom…"
+            }
             className="w-full border border-border rounded px-2 py-1 bg-surface focus:outline-none focus:ring-1 focus:ring-accent"
             autoComplete="off"
           />
@@ -114,8 +140,8 @@ export function AddLineItemForm({ action }: { action: AddLineItemAction }) {
                 ))}
               </div>
               <ul>
-                {matches.map((item, i) => (
-                  <li key={`${item.trade}-${i}-${item.description}`}>
+                {matches.map((item) => (
+                  <li key={item.id}>
                     <button
                       type="button"
                       onMouseDown={(e) => e.preventDefault()}

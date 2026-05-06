@@ -60,6 +60,7 @@ export async function addLineItem(
   const unitPrice = Number(formData.get("unitPrice") ?? 0)
   const kindRaw = String(formData.get("kind") ?? "material")
   const kind = kindRaw === "labor" ? "labor" : "material"
+  const catalogItemId = String(formData.get("catalogItemId") ?? "").trim() || null
 
   const last = await prisma.lineItem.findFirst({
     where: { sectionId },
@@ -75,9 +76,51 @@ export async function addLineItem(
       kind,
       sectionId,
       order: (last?.order ?? -1) + 1,
+      catalogItemId,
     },
   })
   revalidatePath(`/projects/${projectId}`)
+}
+
+/**
+ * Refresh prices on every line item that was originally picked from the
+ * catalog (catalogItemId is set). Returns the count of items updated, so
+ * the caller can show a toast.
+ */
+export async function refreshPricesFromCatalog(projectId: string): Promise<{ updated: number }> {
+  const project = await requireProject(projectId)
+
+  const linkedItems = await prisma.lineItem.findMany({
+    where: {
+      catalogItemId: { not: null },
+      section: { projectId: project.id },
+    },
+    include: { catalogItem: true },
+  })
+
+  let updated = 0
+  for (const item of linkedItems) {
+    if (!item.catalogItem) continue
+    const cat = item.catalogItem
+    if (
+      item.unitPrice === cat.unitPrice &&
+      item.unit === cat.unit &&
+      item.kind === cat.kind
+    ) {
+      continue
+    }
+    await prisma.lineItem.update({
+      where: { id: item.id },
+      data: {
+        unitPrice: cat.unitPrice,
+        unit: cat.unit,
+        kind: cat.kind,
+      },
+    })
+    updated++
+  }
+  revalidatePath(`/projects/${projectId}`)
+  return { updated }
 }
 
 export async function updateLineItem(
