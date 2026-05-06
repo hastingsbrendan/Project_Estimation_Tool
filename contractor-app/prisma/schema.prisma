@@ -61,23 +61,48 @@ model VerificationToken {
 
 // App models
 model Project {
-  id          String   @id @default(cuid())
-  name        String
-  clientName  String?
-  clientEmail String?
-  address     String?
-  status      String   @default("draft") // draft | sent | accepted | rejected | won | lost
-  taxRate     Float    @default(0) // percent (0-100); applies to materials only
-  markupPct   Float    @default(0) // percent (0-100); applies to subtotal
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  userId      String
+  id              String   @id @default(cuid())
+  name            String
+  clientName      String?
+  clientEmail     String?
+  address         String?
+  status          String   @default("draft") // draft | sent | accepted | rejected | won | lost
+  taxRate         Float    @default(0) // percent (0-100); applies to materials only
+  markupPct       Float    @default(0) // percent (0-100); applies to subtotal
+  notes           String? // free-form jobsite notes
+  scope           String? // proposal scope of work (markdown allowed)
+  exclusions      String? // proposal exclusions
+  paymentSchedule String? // proposal payment schedule
+  proposalSentAt  DateTime? // when the proposal email was last sent
+  shareToken      String?   @unique // public read-only proposal link
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  userId          String
 
   user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   sections Section[]
   rooms    Room[]
+  photos   Photo[]
 
   @@index([userId])
+}
+
+model Photo {
+  id        String   @id @default(cuid())
+  url       String // public Vercel Blob URL
+  pathname  String // for delete via @vercel/blob
+  filename  String
+  caption   String?
+  size      Int? // bytes
+  width     Int?
+  height    Int?
+  order     Int      @default(0)
+  projectId String
+  createdAt DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
 }
 
 model Room {

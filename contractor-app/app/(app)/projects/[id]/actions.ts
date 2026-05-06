@@ -168,6 +168,7 @@ export async function updateProjectMeta(
   const clientName = String(formData.get("clientName") ?? "").trim() || null
   const clientEmail = String(formData.get("clientEmail") ?? "").trim() || null
   const address = String(formData.get("address") ?? "").trim() || null
+  const notes = String(formData.get("notes") ?? "").trim() || null
   const markupPct = Number(formData.get("markupPct") ?? 0)
   const taxRate = Number(formData.get("taxRate") ?? 0)
   const statusRaw = String(formData.get("status") ?? "")
@@ -183,12 +184,29 @@ export async function updateProjectMeta(
       clientName,
       clientEmail,
       address,
+      notes,
       markupPct: Number.isFinite(markupPct) ? markupPct : 0,
       taxRate: Number.isFinite(taxRate) ? taxRate : 0,
       ...(status && { status }),
     },
   })
   revalidatePath(`/projects/${projectId}`)
+}
+
+export async function updateProposalContent(
+  projectId: string,
+  formData: FormData,
+): Promise<void> {
+  await requireProject(projectId)
+  const scope = String(formData.get("scope") ?? "").trim() || null
+  const exclusions = String(formData.get("exclusions") ?? "").trim() || null
+  const paymentSchedule = String(formData.get("paymentSchedule") ?? "").trim() || null
+  await prisma.project.update({
+    where: { id: projectId },
+    data: { scope, exclusions, paymentSchedule },
+  })
+  revalidatePath(`/projects/${projectId}`)
+  revalidatePath(`/projects/${projectId}/proposal`)
 }
 
 /**

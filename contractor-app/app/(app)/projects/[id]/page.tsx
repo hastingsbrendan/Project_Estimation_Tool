@@ -18,9 +18,11 @@ import {
   updateProjectMeta,
 } from "./actions"
 import { addRoom, updateRoom, deleteRoom } from "./room-actions"
+import { uploadPhoto, deletePhoto, updatePhotoCaption } from "./photo-actions"
 import { AutoSaveForm } from "./auto-form"
 import { AddLineItemForm } from "./catalog-picker"
 import { RefreshPricesButton } from "./refresh-prices-button"
+import { PhotoGallery } from "./photo-gallery"
 
 const STATUSES = [
   { value: "draft", label: "Draft", color: "bg-gray-100 text-gray-700" },
@@ -52,6 +54,7 @@ export default async function ProjectDetailPage({
           include: { lineItems: { orderBy: { order: "asc" } } },
         },
         rooms: { orderBy: { order: "asc" } },
+        photos: { orderBy: { order: "asc" } },
       },
     }),
     prisma.catalogItem.findMany({
@@ -96,11 +99,25 @@ export default async function ProjectDetailPage({
 
   return (
     <div className="space-y-6 pb-32">
-      {/* Back link */}
-      <div>
+      {/* Back link + page actions */}
+      <div className="flex items-center justify-between gap-3 flex-wrap">
         <Link href="/projects" className="text-sm text-foreground-muted hover:text-foreground">
           ← All projects
         </Link>
+        <div className="flex items-center gap-2 text-sm">
+          <Link
+            href={`/projects/${project.id}/materials`}
+            className="px-3 py-1.5 bg-surface border border-border rounded-md text-foreground-muted hover:bg-accent-soft hover:text-foreground hover:border-accent transition-colors"
+          >
+            📋 Material list
+          </Link>
+          <Link
+            href={`/projects/${project.id}/proposal`}
+            className="px-3 py-1.5 bg-accent text-white rounded-md font-medium hover:bg-accent-hover transition-colors"
+          >
+            📄 Proposal
+          </Link>
+        </div>
       </div>
 
       {/* Project meta */}
@@ -188,6 +205,18 @@ export default async function ProjectDetailPage({
                 className="w-full text-sm text-foreground border border-border rounded px-2 py-1.5 bg-surface focus:outline-none focus:ring-2 focus:ring-accent"
               />
             </div>
+            <div className="sm:col-span-2">
+              <label className="block text-xs font-medium text-foreground-muted mb-1">
+                Project notes
+              </label>
+              <textarea
+                name="notes"
+                defaultValue={project.notes ?? ""}
+                rows={3}
+                placeholder="Free-form jobsite notes — site access, key contacts, gotchas, scheduling notes…"
+                className="w-full text-sm text-foreground border border-border rounded px-2 py-1.5 bg-surface focus:outline-none focus:ring-2 focus:ring-accent resize-y"
+              />
+            </div>
           </div>
 
           <div className="flex items-center justify-end pt-2">
@@ -235,6 +264,32 @@ export default async function ProjectDetailPage({
             + Room
           </button>
         </form>
+      </section>
+
+      {/* Photos */}
+      <section>
+        <div className="flex items-baseline justify-between mb-3">
+          <h2 className="text-base font-semibold text-foreground">Photos</h2>
+          {project.photos.length > 0 && (
+            <span className="text-xs text-foreground-soft">
+              {project.photos.length} photo{project.photos.length === 1 ? "" : "s"}
+            </span>
+          )}
+        </div>
+        <PhotoGallery
+          photos={project.photos.map((p) => ({
+            id: p.id,
+            url: p.url,
+            filename: p.filename,
+            caption: p.caption,
+            size: p.size,
+            width: p.width,
+            height: p.height,
+          }))}
+          uploadAction={uploadPhoto.bind(null, project.id)}
+          deleteAction={deletePhoto.bind(null, project.id)}
+          updateCaptionAction={updatePhotoCaption.bind(null, project.id)}
+        />
       </section>
 
       {/* Sections */}

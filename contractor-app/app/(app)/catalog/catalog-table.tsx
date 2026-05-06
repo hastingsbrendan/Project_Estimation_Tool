@@ -137,14 +137,19 @@ export function CatalogTable({
               />
             </div>
             <div className="col-span-3 sm:col-span-2">
-              <label className="block text-xs text-foreground-muted mb-0.5">Price</label>
-              <input
-                name="unitPrice"
-                type="number"
-                step="0.01"
-                defaultValue="0"
-                className="w-full border border-border rounded px-2 py-1.5 bg-surface focus:outline-none focus:ring-1 focus:ring-accent"
-              />
+              <label className="block text-xs text-foreground-muted mb-0.5">Price (per unit)</label>
+              <div className="relative">
+                <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-foreground-soft text-sm">
+                  $
+                </span>
+                <input
+                  name="unitPrice"
+                  type="number"
+                  step="0.01"
+                  defaultValue="0"
+                  className="w-full border border-border rounded pl-6 pr-2 py-1.5 bg-surface focus:outline-none focus:ring-1 focus:ring-accent tabular-nums"
+                />
+              </div>
             </div>
             <div className="col-span-6 sm:col-span-2">
               <label className="block text-xs text-foreground-muted mb-0.5">Type</label>
@@ -188,7 +193,7 @@ export function CatalogTable({
             <div className="col-span-5">Description</div>
             <div className="col-span-2">Trade</div>
             <div className="col-span-1">Unit</div>
-            <div className="col-span-1 text-right">Price</div>
+            <div className="col-span-1 text-right">Price / unit</div>
             <div className="col-span-2">Type</div>
             <div className="col-span-1"></div>
           </div>
@@ -303,13 +308,24 @@ function CatalogRow({
             />
           </div>
           <div className="col-span-3 sm:col-span-1 text-right">
-            <input
-              name="unitPrice"
-              type="number"
-              step="0.01"
-              defaultValue={item.unitPrice}
-              className="w-full bg-transparent border-b border-transparent hover:border-border focus:border-accent focus:outline-none px-1 py-0.5 -mx-1 tabular-nums text-foreground text-right"
-            />
+            <div className="relative">
+              <span
+                className="pointer-events-none absolute left-1 top-1/2 -translate-y-1/2 text-foreground-soft text-xs"
+                aria-hidden="true"
+              >
+                $
+              </span>
+              <input
+                name="unitPrice"
+                type="number"
+                step="0.01"
+                defaultValue={item.unitPrice}
+                className="w-full bg-transparent border-b border-transparent hover:border-border focus:border-accent focus:outline-none pl-4 pr-1 py-0.5 tabular-nums text-foreground text-right"
+              />
+            </div>
+            <div className="text-[10px] text-foreground-soft text-right -mt-1">
+              per {item.unit}
+            </div>
           </div>
           <div className="col-span-3 sm:col-span-2">
             <select
