@@ -65,7 +65,7 @@ model Project {
   clientName  String?
   clientEmail String?
   address     String?
-  status      String   @default("draft")
+  status      String   @default("draft") // draft | sent | accepted | rejected | won | lost
   taxRate     Float    @default(0) // percent (0-100); applies to materials only
   markupPct   Float    @default(0) // percent (0-100); applies to subtotal
   createdAt   DateTime @default(now())
@@ -74,8 +74,26 @@ model Project {
 
   user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   sections Section[]
+  rooms    Room[]
 
   @@index([userId])
+}
+
+model Room {
+  id        String   @id @default(cuid())
+  name      String   // e.g. "Kitchen", "Master bath"
+  lengthFt  Float? // length in feet (optional)
+  widthFt   Float? // width in feet (optional)
+  heightFt  Float    @default(8) // ceiling height (default 8 ft)
+  notes     String? // free-form: "10ft east wall has window 3x4", etc.
+  order     Int      @default(0)
+  projectId String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
 }
 
 model Section {

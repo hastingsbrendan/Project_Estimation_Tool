@@ -8,14 +8,16 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="min-h-screen flex flex-col">
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
+      <header className="bg-surface border-b border-border sticky top-0 z-10">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
           <Link href="/projects" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
-            <span className="text-lg">🔨</span>
-            <span className="font-semibold text-gray-900">Contractor App</span>
+            <span className="inline-flex items-center justify-center w-7 h-7 bg-accent rounded-md text-white text-sm">
+              🔨
+            </span>
+            <span className="font-semibold text-foreground">Contractor App</span>
           </Link>
           <div className="flex items-center gap-3">
-            <span className="text-sm text-gray-500 hidden sm:block">{session.user?.email}</span>
+            <span className="text-sm text-foreground-muted hidden sm:block">{session.user?.email}</span>
             <form
               action={async () => {
                 "use server"
@@ -24,7 +26,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             >
               <button
                 type="submit"
-                className="text-sm text-gray-600 hover:text-gray-900 transition-colors"
+                className="text-sm text-foreground-muted hover:text-foreground transition-colors"
               >
                 Sign out
               </button>

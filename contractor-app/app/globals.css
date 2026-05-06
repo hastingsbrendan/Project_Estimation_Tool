@@ -1,26 +1,63 @@
 @import "tailwindcss";
 
+/*
+ * Contractor App design system — warm, paper-feel, construction-friendly.
+ * High-contrast text on a soft off-white surface; amber accent for primary
+ * actions and active states. Single theme — no dark mode (intentional, so
+ * the app reads consistently on a phone in any lighting).
+ */
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #faf9f6;        /* warm off-white "paper" */
+  --surface: #ffffff;            /* card surface */
+  --surface-muted: #f5f3ef;      /* subtle banner / inset */
+  --foreground: #18181b;         /* near-black for primary text */
+  --foreground-muted: #52525b;   /* gray-600-ish for secondary text */
+  --foreground-soft: #71717a;    /* gray-500-ish for tertiary text */
+  --border: #e7e5e0;             /* warm border */
+  --border-strong: #d6d3ce;      /* warm border on hover */
+
+  --accent: #d97706;             /* amber-600 — construction orange */
+  --accent-hover: #b45309;       /* amber-700 */
+  --accent-soft: #fef3c7;        /* amber-100 — backgrounds, badges */
+  --accent-soft-hover: #fde68a;  /* amber-200 */
+
+  --success: #16a34a;            /* green-600 */
+  --warning: #ca8a04;            /* yellow-600 */
+  --danger: #dc2626;             /* red-600 */
 }
 
+/* Tailwind v4 theme tokens — exposed as utility classes via @theme. */
 @theme inline {
   --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-surface-muted: var(--surface-muted);
   --color-foreground: var(--foreground);
+  --color-foreground-muted: var(--foreground-muted);
+  --color-foreground-soft: var(--foreground-soft);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-soft-hover: var(--accent-soft-hover);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
+html,
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Make selection match the accent for a small but visible touch. */
+::selection {
+  background: var(--accent-soft);
+  color: var(--foreground);
 }

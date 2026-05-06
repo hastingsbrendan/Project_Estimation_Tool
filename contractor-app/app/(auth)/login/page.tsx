@@ -62,7 +62,7 @@ function LoginForm() {
   return (
     <>
       <div className="text-center mb-8">
-        <div className="inline-flex items-center justify-center w-12 h-12 bg-gray-900 rounded-xl mb-4">
+        <div className="inline-flex items-center justify-center w-12 h-12 bg-accent rounded-xl mb-4 shadow-sm">
           <span className="text-white text-lg">🔨</span>
         </div>
         <h1 className="text-2xl font-bold text-gray-900">Contractor App</h1>
@@ -88,13 +88,13 @@ function LoginForm() {
             placeholder="you@example.com"
             required
             autoComplete="email"
-            className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+            className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent"
           />
         </div>
         <button
           type="submit"
           disabled={pending}
-          className="w-full bg-gray-900 text-white py-2.5 px-4 rounded-lg text-sm font-medium hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          className="w-full bg-accent text-white py-2.5 px-4 rounded-lg text-sm font-medium hover:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
           {pending ? "Sending…" : "Send magic link"}
         </button>

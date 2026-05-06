@@ -1,0 +1,192 @@
+"use client"
+
+import { useId, useMemo, useRef, useState } from "react"
+import { CATALOG_SEED } from "@/seeds/catalog"
+
+type AddLineItemAction = (formData: FormData) => Promise<void>
+
+const TRADE_LABELS: Record<string, string> = {
+  demo: "Demo",
+  framing: "Framing",
+  plumbing: "Plumbing",
+  electrical: "Electrical",
+  drywall: "Drywall",
+  finish: "Finish",
+}
+
+/**
+ * Add Line Item form with a catalog typeahead. Selecting a catalog item
+ * fills in the description, unit, unitPrice, and kind fields. The user can
+ * still type a custom item from scratch by ignoring the dropdown.
+ */
+export function AddLineItemForm({ action }: { action: AddLineItemAction }) {
+  const id = useId()
+  const [query, setQuery] = useState("")
+  const [tradeFilter, setTradeFilter] = useState<string>("")
+  const [open, setOpen] = useState(false)
+  const descRef = useRef<HTMLInputElement>(null)
+  const unitRef = useRef<HTMLInputElement>(null)
+  const priceRef = useRef<HTMLInputElement>(null)
+  const kindRef = useRef<HTMLSelectElement>(null)
+  const formRef = useRef<HTMLFormElement>(null)
+
+  const matches = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    let pool = CATALOG_SEED
+    if (tradeFilter) pool = pool.filter((c) => c.trade === tradeFilter)
+    if (q.length === 0) return pool.slice(0, 8)
+    return pool
+      .filter((c) => c.description.toLowerCase().includes(q))
+      .slice(0, 12)
+  }, [query, tradeFilter])
+
+  const pick = (item: (typeof CATALOG_SEED)[number]) => {
+    setQuery(item.description)
+    if (descRef.current) descRef.current.value = item.description
+    if (unitRef.current) unitRef.current.value = item.unit
+    if (priceRef.current) priceRef.current.value = String(item.unitPrice)
+    if (kindRef.current) kindRef.current.value = item.kind
+    setOpen(false)
+  }
+
+  return (
+    <form
+      ref={formRef}
+      action={async (fd) => {
+        await action(fd)
+        // Reset form fields after successful submit
+        formRef.current?.reset()
+        setQuery("")
+        setOpen(false)
+      }}
+      className="px-4 py-3 border-t border-border bg-surface-muted/50"
+    >
+      <div className="grid grid-cols-12 gap-2 items-end text-sm">
+        <div className="col-span-12 sm:col-span-5 relative">
+          <label htmlFor={`${id}-desc`} className="block text-xs text-foreground-muted mb-0.5">
+            Description
+          </label>
+          <input
+            id={`${id}-desc`}
+            ref={descRef}
+            name="description"
+            required
+            value={query}
+            onChange={(e) => {
+              setQuery(e.target.value)
+              setOpen(true)
+            }}
+            onFocus={() => setOpen(true)}
+            onBlur={() => setTimeout(() => setOpen(false), 150)}
+            placeholder="Search catalog or type custom…"
+            className="w-full border border-border rounded px-2 py-1 bg-surface focus:outline-none focus:ring-1 focus:ring-accent"
+            autoComplete="off"
+          />
+          {open && matches.length > 0 && (
+            <div className="absolute z-20 left-0 right-0 mt-1 max-h-72 overflow-y-auto bg-surface border border-border rounded-md shadow-lg">
+              <div className="sticky top-0 bg-surface-muted border-b border-border px-2 py-1 flex flex-wrap gap-1">
+                <button
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => setTradeFilter("")}
+                  className={`text-[10px] px-1.5 py-0.5 rounded ${
+                    tradeFilter === ""
+                      ? "bg-accent text-white"
+                      : "bg-surface text-foreground-muted hover:bg-accent-soft"
+                  }`}
+                >
+                  All
+                </button>
+                {Object.entries(TRADE_LABELS).map(([key, label]) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => setTradeFilter(key)}
+                    className={`text-[10px] px-1.5 py-0.5 rounded ${
+                      tradeFilter === key
+                        ? "bg-accent text-white"
+                        : "bg-surface text-foreground-muted hover:bg-accent-soft"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <ul>
+                {matches.map((item, i) => (
+                  <li key={`${item.trade}-${i}-${item.description}`}>
+                    <button
+                      type="button"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => pick(item)}
+                      className="w-full text-left px-2 py-1.5 hover:bg-accent-soft text-xs flex items-center justify-between gap-2"
+                    >
+                      <span className="flex-1 truncate text-foreground">{item.description}</span>
+                      <span className="text-[10px] text-foreground-soft tabular-nums">
+                        ${item.unitPrice.toFixed(2)}/{item.unit}
+                      </span>
+                      <span className="text-[10px] uppercase text-foreground-soft w-3 text-center">
+                        {item.kind === "labor" ? "L" : "M"}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+        <div className="col-span-3 sm:col-span-1">
+          <label className="block text-xs text-foreground-muted mb-0.5">Qty</label>
+          <input
+            name="quantity"
+            type="number"
+            step="0.01"
+            defaultValue="1"
+            className="w-full border border-border rounded px-2 py-1 bg-surface focus:outline-none focus:ring-1 focus:ring-accent"
+          />
+        </div>
+        <div className="col-span-3 sm:col-span-1">
+          <label className="block text-xs text-foreground-muted mb-0.5">Unit</label>
+          <input
+            ref={unitRef}
+            name="unit"
+            defaultValue="ea"
+            className="w-full border border-border rounded px-2 py-1 bg-surface focus:outline-none focus:ring-1 focus:ring-accent"
+          />
+        </div>
+        <div className="col-span-3 sm:col-span-2">
+          <label className="block text-xs text-foreground-muted mb-0.5">Unit $</label>
+          <input
+            ref={priceRef}
+            name="unitPrice"
+            type="number"
+            step="0.01"
+            defaultValue="0"
+            className="w-full border border-border rounded px-2 py-1 bg-surface focus:outline-none focus:ring-1 focus:ring-accent"
+          />
+        </div>
+        <div className="col-span-3 sm:col-span-2">
+          <label className="block text-xs text-foreground-muted mb-0.5">Type</label>
+          <select
+            ref={kindRef}
+            name="kind"
+            defaultValue="material"
+            className="w-full border border-border rounded px-2 py-1 bg-surface focus:outline-none focus:ring-1 focus:ring-accent"
+          >
+            <option value="material">Material</option>
+            <option value="labor">Labor</option>
+          </select>
+        </div>
+        <div className="col-span-12 sm:col-span-1">
+          <button
+            type="submit"
+            className="w-full px-2 py-1 bg-accent text-white rounded text-xs font-medium hover:bg-accent-hover"
+          >
+            Add
+          </button>
+        </div>
+      </div>
+    </form>
+  )
+}

@@ -127,6 +127,11 @@ export async function updateProjectMeta(
   const address = String(formData.get("address") ?? "").trim() || null
   const markupPct = Number(formData.get("markupPct") ?? 0)
   const taxRate = Number(formData.get("taxRate") ?? 0)
+  const statusRaw = String(formData.get("status") ?? "")
+  const allowedStatuses = ["draft", "sent", "accepted", "rejected", "won", "lost"] as const
+  const status = (allowedStatuses as readonly string[]).includes(statusRaw)
+    ? statusRaw
+    : undefined
 
   await prisma.project.update({
     where: { id: projectId },
@@ -137,7 +142,61 @@ export async function updateProjectMeta(
       address,
       markupPct: Number.isFinite(markupPct) ? markupPct : 0,
       taxRate: Number.isFinite(taxRate) ? taxRate : 0,
+      ...(status && { status }),
     },
   })
+  revalidatePath(`/projects/${projectId}`)
+}
+
+/**
+ * Move a section up (-1) or down (+1) by swapping `order` with its neighbor.
+ */
+export async function moveSection(
+  projectId: string,
+  sectionId: string,
+  direction: "up" | "down",
+): Promise<void> {
+  await requireProject(projectId)
+  const section = await prisma.section.findUnique({ where: { id: sectionId } })
+  if (!section || section.projectId !== projectId) return
+
+  const neighbor = await prisma.section.findFirst({
+    where: {
+      projectId,
+      order: direction === "up" ? { lt: section.order } : { gt: section.order },
+    },
+    orderBy: { order: direction === "up" ? "desc" : "asc" },
+  })
+  if (!neighbor) return
+
+  await prisma.$transaction([
+    prisma.section.update({ where: { id: section.id }, data: { order: neighbor.order } }),
+    prisma.section.update({ where: { id: neighbor.id }, data: { order: section.order } }),
+  ])
+  revalidatePath(`/projects/${projectId}`)
+}
+
+export async function moveLineItem(
+  projectId: string,
+  lineItemId: string,
+  direction: "up" | "down",
+): Promise<void> {
+  await requireProject(projectId)
+  const item = await prisma.lineItem.findUnique({ where: { id: lineItemId } })
+  if (!item) return
+
+  const neighbor = await prisma.lineItem.findFirst({
+    where: {
+      sectionId: item.sectionId,
+      order: direction === "up" ? { lt: item.order } : { gt: item.order },
+    },
+    orderBy: { order: direction === "up" ? "desc" : "asc" },
+  })
+  if (!neighbor) return
+
+  await prisma.$transaction([
+    prisma.lineItem.update({ where: { id: item.id }, data: { order: neighbor.order } }),
+    prisma.lineItem.update({ where: { id: neighbor.id }, data: { order: item.order } }),
+  ])
   revalidatePath(`/projects/${projectId}`)
 }
