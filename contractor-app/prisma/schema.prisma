@@ -66,9 +66,53 @@ model Project {
   clientEmail String?
   address     String?
   status      String   @default("draft")
+  taxRate     Float    @default(0) // percent (0-100); applies to materials only
+  markupPct   Float    @default(0) // percent (0-100); applies to subtotal
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   userId      String
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sections Section[]
+
+  @@index([userId])
+}
+
+model Section {
+  id        String   @id @default(cuid())
+  name      String
+  order     Int      @default(0)
+  projectId String
+  createdAt DateTime @default(now())
+
+  project   Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  lineItems LineItem[]
+
+  @@index([projectId])
+}
+
+model LineItem {
+  id          String  @id @default(cuid())
+  description String
+  quantity    Float   @default(1)
+  unit        String  @default("ea") // ea, sqft, lf, hr, etc
+  unitPrice   Float   @default(0)
+  kind        String  @default("material") // "material" | "labor"
+  order       Int     @default(0)
+  sectionId   String
+
+  section Section @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+
+  @@index([sectionId])
+}
+
+model CatalogItem {
+  id          String @id @default(cuid())
+  trade       String // demo, framing, plumbing, electrical, drywall, finish
+  description String
+  unit        String @default("ea")
+  unitPrice   Float  @default(0)
+  kind        String @default("material") // "material" | "labor"
+
+  @@index([trade])
 }
