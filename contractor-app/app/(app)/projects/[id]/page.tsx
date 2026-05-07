@@ -680,9 +680,10 @@ function LineItemRow({
               name="kind"
               defaultValue={item.kind}
               className="w-full bg-transparent border-b border-transparent hover:border-border focus:border-accent focus:outline-none px-1 py-0.5 -mx-1 text-foreground"
+              title="Service rolls up to Services sub-table; Material rolls up to Materials sub-table"
             >
               <option value="material">M</option>
-              <option value="labor">L</option>
+              <option value="labor">S</option>
             </select>
           </div>
           <div className="col-span-2 sm:col-span-2 text-right text-foreground tabular-nums font-medium">

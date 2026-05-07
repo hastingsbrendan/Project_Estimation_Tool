@@ -176,14 +176,14 @@ export function CatalogTable({
               </div>
             </div>
             <div className="col-span-6 sm:col-span-2">
-              <label className="block text-xs text-foreground-muted mb-0.5">Type</label>
+              <label className="block text-xs text-foreground-muted mb-0.5">Service / Material</label>
               <select
                 name="kind"
                 defaultValue="material"
                 className="w-full border border-border rounded px-2 py-1.5 bg-surface focus:outline-none focus:ring-1 focus:ring-accent"
               >
                 <option value="material">Material</option>
-                <option value="labor">Labor</option>
+                <option value="labor">Service</option>
               </select>
             </div>
             <div className="col-span-12 sm:col-span-1 flex gap-1">
@@ -217,7 +217,9 @@ export function CatalogTable({
             <div className="col-span-2">Trade</div>
             <div className="col-span-1">Unit</div>
             <div className="col-span-1 text-right">Price / unit</div>
-            <div className="col-span-2">Type</div>
+            <div className="col-span-2" title="Determines whether this rolls up to the project's Services or Materials sub-table">
+              Service / Material
+            </div>
             <div className="col-span-1"></div>
           </div>
           {filtered.map((item) => (
@@ -391,10 +393,15 @@ function CatalogRow({
               <select
                 name="kind"
                 defaultValue={item.kind}
-                className="w-full bg-transparent border-b border-transparent hover:border-border focus:border-accent focus:outline-none px-1 py-0.5 -mx-1 text-foreground"
+                className={`w-full text-xs font-medium rounded-full px-2.5 py-0.5 cursor-pointer focus:outline-none focus:ring-1 focus:ring-accent appearance-none ${
+                  item.kind === "labor"
+                    ? "bg-blue-50 text-blue-700 border border-blue-200"
+                    : "bg-amber-50 text-amber-800 border border-amber-200"
+                }`}
+                title="Service rolls up to Services sub-table; Material rolls up to Materials sub-table"
               >
                 <option value="material">Material</option>
-                <option value="labor">Labor</option>
+                <option value="labor">Service</option>
               </select>
             </div>
           </AutoSaveForm>

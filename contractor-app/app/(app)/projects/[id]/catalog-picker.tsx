@@ -184,7 +184,7 @@ export function AddLineItemForm({
                       </span>
                       {!lockKind && (
                         <span className="text-[10px] uppercase text-foreground-soft w-3 text-center">
-                          {item.kind === "labor" ? "L" : "M"}
+                          {item.kind === "labor" ? "S" : "M"}
                         </span>
                       )}
                     </button>
@@ -234,7 +234,7 @@ export function AddLineItemForm({
               className="w-full border border-border rounded px-2 py-1 bg-surface focus:outline-none focus:ring-1 focus:ring-accent"
             >
               <option value="material">Material</option>
-              <option value="labor">Labor</option>
+              <option value="labor">Service</option>
             </select>
           </div>
         )}
