@@ -123,6 +123,87 @@ export async function loadDefaultCatalog(): Promise<void> {
 }
 
 /**
+ * Add a material to a service's preset bundle. Both items must be owned
+ * by the user; both kinds are validated. UNIQUE(serviceId, materialId)
+ * means re-adding a duplicate is a no-op (we catch and ignore it).
+ */
+export async function addPreset(
+  serviceId: string,
+  formData: FormData,
+): Promise<{ ok: boolean; error?: string }> {
+  const userId = await requireUserId()
+
+  const service = await prisma.catalogItem.findFirst({
+    where: { id: serviceId, userId },
+  })
+  if (!service) return { ok: false, error: "Service not found" }
+  if (service.kind !== "labor") {
+    return { ok: false, error: "Presets can only be added to labor items" }
+  }
+
+  const materialId = String(formData.get("materialId") ?? "").trim()
+  if (!materialId) return { ok: false, error: "Pick a material" }
+
+  const material = await prisma.catalogItem.findFirst({
+    where: { id: materialId, userId },
+  })
+  if (!material) return { ok: false, error: "Material not found" }
+  if (material.kind !== "material") {
+    return { ok: false, error: "Suggested item must be a material" }
+  }
+
+  const defaultQty = parseFloatSafe(formData.get("defaultQty"), 1)
+  const notes = String(formData.get("notes") ?? "").trim() || null
+
+  try {
+    await prisma.catalogPreset.create({
+      data: { serviceId, materialId, defaultQty, notes },
+    })
+  } catch (e) {
+    // Likely UNIQUE collision — already linked. Idempotent.
+    const msg = e instanceof Error ? e.message : ""
+    if (!msg.toLowerCase().includes("unique")) {
+      return { ok: false, error: msg || "Failed to save preset" }
+    }
+  }
+  revalidatePath("/catalog")
+  return { ok: true }
+}
+
+export async function updatePreset(
+  presetId: string,
+  formData: FormData,
+): Promise<{ ok: boolean; error?: string }> {
+  const userId = await requireUserId()
+  const preset = await prisma.catalogPreset.findUnique({
+    where: { id: presetId },
+    include: { service: true },
+  })
+  if (!preset || preset.service.userId !== userId) {
+    return { ok: false, error: "Preset not found" }
+  }
+  const defaultQty = parseFloatSafe(formData.get("defaultQty"), 1)
+  const notes = String(formData.get("notes") ?? "").trim() || null
+  await prisma.catalogPreset.update({
+    where: { id: presetId },
+    data: { defaultQty, notes },
+  })
+  revalidatePath("/catalog")
+  return { ok: true }
+}
+
+export async function removePreset(presetId: string): Promise<void> {
+  const userId = await requireUserId()
+  const preset = await prisma.catalogPreset.findUnique({
+    where: { id: presetId },
+    include: { service: true },
+  })
+  if (!preset || preset.service.userId !== userId) return
+  await prisma.catalogPreset.delete({ where: { id: presetId } })
+  revalidatePath("/catalog")
+}
+
+/**
  * Wipe the user's entire catalog and replace with the static defaults.
  * Destructive — line items that referenced these catalog items will have
  * their catalogItemId set to NULL (kept intact via SET NULL on FK), so

@@ -1,6 +1,7 @@
 "use client"
 
 import { useId, useMemo, useRef, useState } from "react"
+import type { AddLineItemResult } from "./actions"
 
 export type CatalogPickerItem = {
   id: string
@@ -10,8 +11,6 @@ export type CatalogPickerItem = {
   unitPrice: number
   kind: string
 }
-
-type AddLineItemAction = (formData: FormData) => Promise<void>
 
 const TRADE_LABELS: Record<string, string> = {
   demo: "Demo",
@@ -24,16 +23,31 @@ const TRADE_LABELS: Record<string, string> = {
 
 /**
  * Add Line Item form with a catalog typeahead. Catalog items come from the
- * user's saved catalog (server-fetched, passed in as a prop). Selecting a
+ * user's saved catalog (filtered to the locked kind, if any). Selecting a
  * catalog item fills in description/unit/unitPrice/kind AND records the
  * catalogItemId so we can offer "refresh prices" later.
+ *
+ * When `lockKind` is set, the kind <select> is hidden, the dropdown is
+ * filtered to that kind, and the form submits with the locked kind. Used
+ * to render two separate pickers (Services + Materials) per section.
+ *
+ * `onAfterAdd` fires after a successful submit with the server result so
+ * the parent can chain follow-up UI (e.g. surfacing service presets).
  */
 export function AddLineItemForm({
   action,
   catalog,
+  lockKind,
+  onAfterAdd,
+  placeholder,
+  buttonLabel,
 }: {
-  action: AddLineItemAction
+  action: (formData: FormData) => Promise<AddLineItemResult>
   catalog: CatalogPickerItem[]
+  lockKind?: "material" | "labor"
+  onAfterAdd?: (result: AddLineItemResult) => void
+  placeholder?: string
+  buttonLabel?: string
 }) {
   const id = useId()
   const [query, setQuery] = useState("")
@@ -46,15 +60,19 @@ export function AddLineItemForm({
   const kindRef = useRef<HTMLSelectElement>(null)
   const formRef = useRef<HTMLFormElement>(null)
 
+  // When the picker is locked to a kind, only show that kind in the dropdown.
+  const scopedCatalog = useMemo(
+    () => (lockKind ? catalog.filter((c) => c.kind === lockKind) : catalog),
+    [catalog, lockKind],
+  )
+
   const matches = useMemo(() => {
     const q = query.trim().toLowerCase()
-    let pool = catalog
+    let pool = scopedCatalog
     if (tradeFilter) pool = pool.filter((c) => c.trade === tradeFilter)
     if (q.length === 0) return pool.slice(0, 8)
-    return pool
-      .filter((c) => c.description.toLowerCase().includes(q))
-      .slice(0, 12)
-  }, [catalog, query, tradeFilter])
+    return pool.filter((c) => c.description.toLowerCase().includes(q)).slice(0, 12)
+  }, [scopedCatalog, query, tradeFilter])
 
   const pick = (item: CatalogPickerItem) => {
     setQuery(item.description)
@@ -62,28 +80,44 @@ export function AddLineItemForm({
     if (descRef.current) descRef.current.value = item.description
     if (unitRef.current) unitRef.current.value = item.unit
     if (priceRef.current) priceRef.current.value = String(item.unitPrice)
-    if (kindRef.current) kindRef.current.value = item.kind
+    if (!lockKind && kindRef.current) kindRef.current.value = item.kind
     setOpen(false)
   }
+
+  const effectivePlaceholder =
+    placeholder ??
+    (scopedCatalog.length === 0
+      ? lockKind === "labor"
+        ? "Type a service description (no labor items in catalog yet)…"
+        : lockKind === "material"
+          ? "Type a description (no materials in catalog yet)…"
+          : "Type a description (catalog is empty)…"
+      : lockKind === "labor"
+        ? "Search services or type custom…"
+        : lockKind === "material"
+          ? "Search materials or type custom…"
+          : "Search catalog or type custom…")
 
   return (
     <form
       ref={formRef}
       action={async (fd) => {
-        await action(fd)
+        // If a kind is locked, force it onto the form regardless of any
+        // previously-typed value or stale ref.
+        if (lockKind) fd.set("kind", lockKind)
+        const result = await action(fd)
         formRef.current?.reset()
         setQuery("")
         setSelectedId("")
         setOpen(false)
+        onAfterAdd?.(result)
       }}
       className="px-4 py-3 border-t border-border bg-surface-muted/50 rounded-b-lg"
     >
-      {/* Hidden field carries the catalogItemId IF the user picked from the dropdown.
-          When the user types a custom description, we clear this so the
-          server records null (no FK). */}
       <input type="hidden" name="catalogItemId" value={selectedId} />
+      {lockKind && <input type="hidden" name="kind" value={lockKind} />}
       <div className="grid grid-cols-12 gap-2 items-end text-sm">
-        <div className="col-span-12 sm:col-span-5 relative">
+        <div className={`col-span-12 ${lockKind ? "sm:col-span-6" : "sm:col-span-5"} relative`}>
           <label htmlFor={`${id}-desc`} className="block text-xs text-foreground-muted mb-0.5">
             Description
           </label>
@@ -95,16 +129,12 @@ export function AddLineItemForm({
             value={query}
             onChange={(e) => {
               setQuery(e.target.value)
-              setSelectedId("") // typing breaks the catalog link
+              setSelectedId("")
               setOpen(true)
             }}
             onFocus={() => setOpen(true)}
             onBlur={() => setTimeout(() => setOpen(false), 150)}
-            placeholder={
-              catalog.length === 0
-                ? "Type a description (catalog is empty)…"
-                : "Search catalog or type custom…"
-            }
+            placeholder={effectivePlaceholder}
             className="w-full border border-border rounded px-2 py-1 bg-surface focus:outline-none focus:ring-1 focus:ring-accent"
             autoComplete="off"
           />
@@ -152,9 +182,11 @@ export function AddLineItemForm({
                       <span className="text-[10px] text-foreground-soft tabular-nums">
                         ${item.unitPrice.toFixed(2)}/{item.unit}
                       </span>
-                      <span className="text-[10px] uppercase text-foreground-soft w-3 text-center">
-                        {item.kind === "labor" ? "L" : "M"}
-                      </span>
+                      {!lockKind && (
+                        <span className="text-[10px] uppercase text-foreground-soft w-3 text-center">
+                          {item.kind === "labor" ? "L" : "M"}
+                        </span>
+                      )}
                     </button>
                   </li>
                 ))}
@@ -177,7 +209,7 @@ export function AddLineItemForm({
           <input
             ref={unitRef}
             name="unit"
-            defaultValue="ea"
+            defaultValue={lockKind === "labor" ? "hr" : "ea"}
             className="w-full border border-border rounded px-2 py-1 bg-surface focus:outline-none focus:ring-1 focus:ring-accent"
           />
         </div>
@@ -192,24 +224,26 @@ export function AddLineItemForm({
             className="w-full border border-border rounded px-2 py-1 bg-surface focus:outline-none focus:ring-1 focus:ring-accent"
           />
         </div>
-        <div className="col-span-3 sm:col-span-2">
-          <label className="block text-xs text-foreground-muted mb-0.5">Type</label>
-          <select
-            ref={kindRef}
-            name="kind"
-            defaultValue="material"
-            className="w-full border border-border rounded px-2 py-1 bg-surface focus:outline-none focus:ring-1 focus:ring-accent"
-          >
-            <option value="material">Material</option>
-            <option value="labor">Labor</option>
-          </select>
-        </div>
+        {!lockKind && (
+          <div className="col-span-3 sm:col-span-2">
+            <label className="block text-xs text-foreground-muted mb-0.5">Type</label>
+            <select
+              ref={kindRef}
+              name="kind"
+              defaultValue="material"
+              className="w-full border border-border rounded px-2 py-1 bg-surface focus:outline-none focus:ring-1 focus:ring-accent"
+            >
+              <option value="material">Material</option>
+              <option value="labor">Labor</option>
+            </select>
+          </div>
+        )}
         <div className="col-span-12 sm:col-span-1">
           <button
             type="submit"
             className="w-full px-2 py-1 bg-accent text-white rounded text-xs font-medium hover:bg-accent-hover"
           >
-            Add
+            {buttonLabel ?? "Add"}
           </button>
         </div>
       </div>

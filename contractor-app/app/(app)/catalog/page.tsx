@@ -2,11 +2,14 @@ import { auth } from "@/auth"
 import { prisma } from "@/lib/db"
 import { redirect } from "next/navigation"
 import {
+  addPreset,
   createCatalogItem,
   deleteCatalogItem,
   loadDefaultCatalog,
+  removePreset,
   resetCatalogToDefaults,
   updateCatalogItem,
+  updatePreset,
 } from "./actions"
 import { CatalogTable } from "./catalog-table"
 
@@ -16,10 +19,25 @@ export default async function CatalogPage() {
   const user = await prisma.user.findUnique({ where: { email: session.user.email } })
   if (!user) redirect("/login")
 
-  const items = await prisma.catalogItem.findMany({
-    where: { userId: user.id, archived: false },
-    orderBy: [{ trade: "asc" }, { description: "asc" }],
-  })
+  const [items, presets] = await Promise.all([
+    prisma.catalogItem.findMany({
+      where: { userId: user.id, archived: false },
+      orderBy: [{ trade: "asc" }, { description: "asc" }],
+    }),
+    prisma.catalogPreset.findMany({
+      where: { service: { userId: user.id } },
+      include: { material: true },
+      orderBy: { material: { description: "asc" } },
+    }),
+  ])
+
+  // Group presets by serviceId for easy lookup in the client component.
+  const presetsByService = new Map<string, typeof presets>()
+  for (const p of presets) {
+    const arr = presetsByService.get(p.serviceId) ?? []
+    arr.push(p)
+    presetsByService.set(p.serviceId, arr)
+  }
 
   return (
     <div className="space-y-6">
@@ -52,10 +70,27 @@ export default async function CatalogPage() {
             kind: i.kind,
             notes: i.notes,
           }))}
+          presetsByService={Object.fromEntries(
+            Array.from(presetsByService.entries()).map(([sid, list]) => [
+              sid,
+              list.map((p) => ({
+                id: p.id,
+                materialId: p.materialId,
+                materialDescription: p.material.description,
+                materialUnit: p.material.unit,
+                materialUnitPrice: p.material.unitPrice,
+                defaultQty: p.defaultQty,
+                notes: p.notes,
+              })),
+            ]),
+          )}
           createAction={createCatalogItem}
           updateAction={updateCatalogItem}
           deleteAction={deleteCatalogItem}
           resetAction={resetCatalogToDefaults}
+          addPresetAction={addPreset}
+          updatePresetAction={updatePreset}
+          removePresetAction={removePreset}
         />
       )}
     </div>

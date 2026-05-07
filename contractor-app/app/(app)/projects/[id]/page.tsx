@@ -8,6 +8,7 @@ import { archiveProject, deleteProject, duplicateProject } from "../actions"
 import {
   addSection,
   addLineItem,
+  applyServicePresets,
   deleteSection,
   deleteLineItem,
   refreshPricesFromCatalog,
@@ -21,6 +22,7 @@ import { addRoom, updateRoom, deleteRoom } from "./room-actions"
 import { uploadPhoto, deletePhoto, updatePhotoCaption } from "./photo-actions"
 import { AutoSaveForm } from "./auto-form"
 import { AddLineItemForm } from "./catalog-picker"
+import { ServicesPicker } from "./services-picker"
 import { RefreshPricesButton } from "./refresh-prices-button"
 import { PhotoGallery } from "./photo-gallery"
 import { SortableList, DraggableRow } from "./sortable"
@@ -337,7 +339,16 @@ export default async function ProjectDetailPage({
                 (sum, li) => sum + lineItemTotal(li),
                 0,
               )
-              const lineItemIds = section.lineItems.map((li) => li.id)
+              const services = section.lineItems.filter((li) => li.kind === "labor")
+              const materials = section.lineItems.filter((li) => li.kind === "material")
+              const servicesTotal = services.reduce(
+                (sum, li) => sum + lineItemTotal(li),
+                0,
+              )
+              const materialsTotal = materials.reduce(
+                (sum, li) => sum + lineItemTotal(li),
+                0,
+              )
               return (
                 <DraggableRow key={section.id} id={section.id} handlePosition="absolute">
                   <div className="bg-surface border border-border rounded-lg">
@@ -366,24 +377,81 @@ export default async function ProjectDetailPage({
                       </form>
                     </div>
 
-                    {section.lineItems.length > 0 && (
-                      <SortableList
-                        ids={lineItemIds}
-                        onReorder={reorderLineItems.bind(null, project.id, section.id)}
-                        className="divide-y divide-border"
-                      >
-                        {section.lineItems.map((item) => (
-                          <DraggableRow key={item.id} id={item.id} handlePosition="leading">
-                            <LineItemRow projectId={project.id} item={item} />
-                          </DraggableRow>
-                        ))}
-                      </SortableList>
-                    )}
+                    {/* Services sub-table */}
+                    <div className="border-b border-border">
+                      <div className="flex items-baseline justify-between px-4 py-1.5 bg-surface-muted/40">
+                        <span className="text-[10px] uppercase tracking-wider text-foreground-soft font-medium">
+                          Services
+                        </span>
+                        {services.length > 0 && (
+                          <span className="text-[10px] text-foreground-soft tabular-nums">
+                            {formatCurrency(servicesTotal)}
+                          </span>
+                        )}
+                      </div>
+                      {services.length > 0 && (
+                        <SortableList
+                          ids={services.map((li) => li.id)}
+                          onReorder={reorderLineItems.bind(null, project.id, section.id)}
+                          className="divide-y divide-border"
+                        >
+                          {services.map((item) => (
+                            <DraggableRow
+                              key={item.id}
+                              id={item.id}
+                              handlePosition="leading"
+                            >
+                              <LineItemRow projectId={project.id} item={item} />
+                            </DraggableRow>
+                          ))}
+                        </SortableList>
+                      )}
+                      <ServicesPicker
+                        catalog={catalog}
+                        addAction={addLineItem.bind(null, project.id, section.id)}
+                        applyPresetsAction={applyServicePresets.bind(
+                          null,
+                          project.id,
+                          section.id,
+                        )}
+                      />
+                    </div>
 
-                    <AddLineItemForm
-                      action={addLineItem.bind(null, project.id, section.id)}
-                      catalog={catalog}
-                    />
+                    {/* Materials sub-table */}
+                    <div>
+                      <div className="flex items-baseline justify-between px-4 py-1.5 bg-surface-muted/40">
+                        <span className="text-[10px] uppercase tracking-wider text-foreground-soft font-medium">
+                          Materials
+                        </span>
+                        {materials.length > 0 && (
+                          <span className="text-[10px] text-foreground-soft tabular-nums">
+                            {formatCurrency(materialsTotal)}
+                          </span>
+                        )}
+                      </div>
+                      {materials.length > 0 && (
+                        <SortableList
+                          ids={materials.map((li) => li.id)}
+                          onReorder={reorderLineItems.bind(null, project.id, section.id)}
+                          className="divide-y divide-border"
+                        >
+                          {materials.map((item) => (
+                            <DraggableRow
+                              key={item.id}
+                              id={item.id}
+                              handlePosition="leading"
+                            >
+                              <LineItemRow projectId={project.id} item={item} />
+                            </DraggableRow>
+                          ))}
+                        </SortableList>
+                      )}
+                      <AddLineItemForm
+                        action={addLineItem.bind(null, project.id, section.id)}
+                        catalog={catalog}
+                        lockKind="material"
+                      />
+                    </div>
                   </div>
                 </DraggableRow>
               )

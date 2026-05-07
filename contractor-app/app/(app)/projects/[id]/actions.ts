@@ -45,11 +45,26 @@ export async function deleteSection(projectId: string, sectionId: string): Promi
   revalidatePath(`/projects/${projectId}`)
 }
 
+export type AddLineItemResult = {
+  lineItemId: string
+  description: string
+  kind: "material" | "labor"
+  /** Empty unless the new line item is a service with at least one catalog preset. */
+  suggestedPresets: Array<{
+    presetId: string
+    materialId: string
+    materialDescription: string
+    materialUnit: string
+    materialUnitPrice: number
+    defaultQty: number
+  }>
+}
+
 export async function addLineItem(
   projectId: string,
   sectionId: string,
   formData: FormData,
-): Promise<void> {
+): Promise<AddLineItemResult> {
   await requireProject(projectId)
 
   const description = String(formData.get("description") ?? "").trim()
@@ -67,7 +82,7 @@ export async function addLineItem(
     orderBy: { order: "desc" },
   })
 
-  await prisma.lineItem.create({
+  const created = await prisma.lineItem.create({
     data: {
       description,
       quantity: Number.isFinite(quantity) ? quantity : 1,
@@ -80,6 +95,101 @@ export async function addLineItem(
     },
   })
   revalidatePath(`/projects/${projectId}`)
+
+  // If this was a labor line item linked to a catalog service, surface its
+  // presets to the client so it can offer a one-click "add suggested
+  // materials" panel below the new row.
+  let suggestedPresets: AddLineItemResult["suggestedPresets"] = []
+  if (kind === "labor" && catalogItemId) {
+    const presets = await prisma.catalogPreset.findMany({
+      where: { serviceId: catalogItemId },
+      include: { material: true },
+      orderBy: { material: { description: "asc" } },
+    })
+    suggestedPresets = presets.map((p) => ({
+      presetId: p.id,
+      materialId: p.materialId,
+      materialDescription: p.material.description,
+      materialUnit: p.material.unit,
+      materialUnitPrice: p.material.unitPrice,
+      defaultQty: p.defaultQty,
+    }))
+  }
+
+  return { lineItemId: created.id, description, kind, suggestedPresets }
+}
+
+/**
+ * Atomic bulk-insert: pass an array of presetId+qty for the materials the
+ * user picked from the suggestion panel. Each becomes a new LineItem in the
+ * given section, linked to its catalog material via catalogItemId so the
+ * existing "Refresh prices" feature continues to work.
+ */
+export async function applyServicePresets(
+  projectId: string,
+  sectionId: string,
+  picks: Array<{ presetId: string; quantity: number }>,
+): Promise<{ added: number }> {
+  await requireProject(projectId)
+
+  if (picks.length === 0) return { added: 0 }
+
+  // Fetch all presets in one go and verify they belong to a catalog item
+  // owned by the current user (already guarded by requireProject scoping +
+  // the catalog ownership chain via CatalogItem.userId).
+  const presetIds = picks.map((p) => p.presetId)
+  const presets = await prisma.catalogPreset.findMany({
+    where: { id: { in: presetIds } },
+    include: { material: true, service: true },
+  })
+
+  // Drop any preset whose material isn't owned by the project's user.
+  const project = await prisma.project.findUnique({ where: { id: projectId } })
+  if (!project) throw new Error("Project not found")
+  const ownedPresets = presets.filter(
+    (p) => p.material.userId === project.userId && p.service.userId === project.userId,
+  )
+
+  // Compute the next order index and bulk-insert in one go.
+  const last = await prisma.lineItem.findFirst({
+    where: { sectionId },
+    orderBy: { order: "desc" },
+  })
+  let nextOrder = (last?.order ?? -1) + 1
+
+  // Build the full insert list, preserving the user's pick order.
+  const presetById = new Map(ownedPresets.map((p) => [p.id, p]))
+  const rows: Array<{
+    description: string
+    quantity: number
+    unit: string
+    unitPrice: number
+    kind: string
+    sectionId: string
+    order: number
+    catalogItemId: string
+  }> = []
+  for (const pick of picks) {
+    const preset = presetById.get(pick.presetId)
+    if (!preset) continue
+    const qty = Number.isFinite(pick.quantity) && pick.quantity > 0 ? pick.quantity : preset.defaultQty
+    rows.push({
+      description: preset.material.description,
+      quantity: qty,
+      unit: preset.material.unit,
+      unitPrice: preset.material.unitPrice,
+      kind: "material",
+      sectionId,
+      order: nextOrder++,
+      catalogItemId: preset.materialId,
+    })
+  }
+
+  if (rows.length === 0) return { added: 0 }
+
+  await prisma.lineItem.createMany({ data: rows })
+  revalidatePath(`/projects/${projectId}`)
+  return { added: rows.length }
 }
 
 /**

@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState, useTransition } from "react"
+import { useMemo, useRef, useState, useTransition } from "react"
 import { AutoSaveForm } from "../projects/[id]/auto-form"
 
 type CatalogItemView = {
@@ -10,6 +10,16 @@ type CatalogItemView = {
   unit: string
   unitPrice: number
   kind: string
+  notes: string | null
+}
+
+export type PresetView = {
+  id: string
+  materialId: string
+  materialDescription: string
+  materialUnit: string
+  materialUnitPrice: number
+  defaultQty: number
   notes: string | null
 }
 
@@ -25,16 +35,30 @@ const TRADES = [
 
 export function CatalogTable({
   items,
+  presetsByService,
   createAction,
   updateAction,
   deleteAction,
   resetAction,
+  addPresetAction,
+  updatePresetAction,
+  removePresetAction,
 }: {
   items: CatalogItemView[]
+  presetsByService: Record<string, PresetView[]>
   createAction: (formData: FormData) => Promise<void>
   updateAction: (id: string, formData: FormData) => Promise<void>
   deleteAction: (id: string) => Promise<void>
   resetAction: () => Promise<void>
+  addPresetAction: (
+    serviceId: string,
+    formData: FormData,
+  ) => Promise<{ ok: boolean; error?: string }>
+  updatePresetAction: (
+    presetId: string,
+    formData: FormData,
+  ) => Promise<{ ok: boolean; error?: string }>
+  removePresetAction: (presetId: string) => Promise<void>
 }) {
   const [search, setSearch] = useState("")
   const [trade, setTrade] = useState<string>("")
@@ -51,9 +75,11 @@ export function CatalogTable({
     })
   }, [items, search, trade])
 
+  // Materials list for the preset typeahead — frozen view of all materials.
+  const materials = useMemo(() => items.filter((i) => i.kind === "material"), [items])
+
   return (
     <div className="space-y-4">
-      {/* Toolbar */}
       <div className="flex flex-wrap gap-3 items-center">
         <input
           type="search"
@@ -71,7 +97,6 @@ export function CatalogTable({
         </button>
       </div>
 
-      {/* Trade filter chips */}
       <div className="flex flex-wrap gap-1.5">
         {TRADES.map((t) => {
           const count =
@@ -95,7 +120,6 @@ export function CatalogTable({
         })}
       </div>
 
-      {/* Add form (collapsible) */}
       {showAdd && (
         <div id="add-form" className="bg-accent-soft/40 border border-accent rounded-lg p-4">
           <form
@@ -182,7 +206,6 @@ export function CatalogTable({
         </div>
       )}
 
-      {/* Results list */}
       {filtered.length === 0 ? (
         <p className="text-sm text-foreground-soft italic px-1">
           No catalog items match your filters.
@@ -201,14 +224,18 @@ export function CatalogTable({
             <CatalogRow
               key={item.id}
               item={item}
+              presets={item.kind === "labor" ? presetsByService[item.id] ?? [] : []}
+              materials={materials}
               updateAction={updateAction}
               deleteAction={deleteAction}
+              addPresetAction={addPresetAction}
+              updatePresetAction={updatePresetAction}
+              removePresetAction={removePresetAction}
             />
           ))}
         </div>
       )}
 
-      {/* Reset to defaults */}
       <div className="pt-4 border-t border-border">
         <details className="text-xs text-foreground-soft">
           <summary className="cursor-pointer hover:text-foreground transition-colors inline-flex items-center gap-1">
@@ -265,96 +292,325 @@ export function CatalogTable({
 
 function CatalogRow({
   item,
+  presets,
+  materials,
   updateAction,
   deleteAction,
+  addPresetAction,
+  updatePresetAction,
+  removePresetAction,
 }: {
   item: CatalogItemView
+  presets: PresetView[]
+  materials: CatalogItemView[]
   updateAction: (id: string, formData: FormData) => Promise<void>
   deleteAction: (id: string) => Promise<void>
+  addPresetAction: (
+    serviceId: string,
+    formData: FormData,
+  ) => Promise<{ ok: boolean; error?: string }>
+  updatePresetAction: (
+    presetId: string,
+    formData: FormData,
+  ) => Promise<{ ok: boolean; error?: string }>
+  removePresetAction: (presetId: string) => Promise<void>
 }) {
   const [isPending, startTransition] = useTransition()
+  const [presetsOpen, setPresetsOpen] = useState(false)
+
+  const isLabor = item.kind === "labor"
+  const hasPresets = presets.length > 0
+
   return (
-    <div className="px-4 py-2 hover:bg-surface-muted/50 transition-colors group">
-      <div className="grid grid-cols-12 gap-2 items-center text-sm">
-        <AutoSaveForm
-          action={updateAction.bind(null, item.id)}
-          className="col-span-12 sm:col-span-11 grid grid-cols-12 gap-2 items-center"
-        >
-          <div className="col-span-12 sm:col-span-5">
-            <input
-              name="description"
-              defaultValue={item.description}
-              className="w-full bg-transparent border-b border-transparent hover:border-border focus:border-accent focus:outline-none px-1 py-0.5 -mx-1 text-foreground"
-            />
-          </div>
-          <div className="col-span-3 sm:col-span-2">
-            <select
-              name="trade"
-              defaultValue={item.trade}
-              className="w-full bg-transparent border-b border-transparent hover:border-border focus:border-accent focus:outline-none px-1 py-0.5 -mx-1 text-foreground"
-            >
-              {TRADES.filter((t) => t.value).map((t) => (
-                <option key={t.value} value={t.value}>
-                  {t.label}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="col-span-3 sm:col-span-1">
-            <input
-              name="unit"
-              defaultValue={item.unit}
-              className="w-full bg-transparent border-b border-transparent hover:border-border focus:border-accent focus:outline-none px-1 py-0.5 -mx-1 text-foreground"
-            />
-          </div>
-          <div className="col-span-3 sm:col-span-1 text-right">
-            <div className="relative">
-              <span
-                className="pointer-events-none absolute left-1 top-1/2 -translate-y-1/2 text-foreground-soft text-xs"
-                aria-hidden="true"
-              >
-                $
-              </span>
+    <div className="hover:bg-surface-muted/50 transition-colors group">
+      <div className="px-4 py-2">
+        <div className="grid grid-cols-12 gap-2 items-center text-sm">
+          <AutoSaveForm
+            action={updateAction.bind(null, item.id)}
+            className="col-span-12 sm:col-span-11 grid grid-cols-12 gap-2 items-center"
+          >
+            <div className="col-span-12 sm:col-span-5">
               <input
-                name="unitPrice"
-                type="number"
-                step="0.01"
-                defaultValue={item.unitPrice}
-                className="w-full bg-transparent border-b border-transparent hover:border-border focus:border-accent focus:outline-none pl-4 pr-1 py-0.5 tabular-nums text-foreground text-right"
+                name="description"
+                defaultValue={item.description}
+                className="w-full bg-transparent border-b border-transparent hover:border-border focus:border-accent focus:outline-none px-1 py-0.5 -mx-1 text-foreground"
+              />
+              {isLabor && (
+                <button
+                  type="button"
+                  onClick={() => setPresetsOpen((v) => !v)}
+                  onMouseDown={(e) => e.preventDefault()}
+                  className="text-[10px] text-foreground-soft hover:text-accent mt-0.5 px-1 -mx-1"
+                  title={hasPresets ? "Show suggested materials" : "Add suggested materials"}
+                >
+                  {presetsOpen ? "▾" : "▸"} {hasPresets ? `${presets.length} suggested material${presets.length === 1 ? "" : "s"}` : "Add suggested materials"}
+                </button>
+              )}
+            </div>
+            <div className="col-span-3 sm:col-span-2">
+              <select
+                name="trade"
+                defaultValue={item.trade}
+                className="w-full bg-transparent border-b border-transparent hover:border-border focus:border-accent focus:outline-none px-1 py-0.5 -mx-1 text-foreground"
+              >
+                {TRADES.filter((t) => t.value).map((t) => (
+                  <option key={t.value} value={t.value}>
+                    {t.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="col-span-3 sm:col-span-1">
+              <input
+                name="unit"
+                defaultValue={item.unit}
+                className="w-full bg-transparent border-b border-transparent hover:border-border focus:border-accent focus:outline-none px-1 py-0.5 -mx-1 text-foreground"
               />
             </div>
-            <div className="text-[10px] text-foreground-soft text-right -mt-1">
-              per {item.unit}
+            <div className="col-span-3 sm:col-span-1 text-right">
+              <div className="relative">
+                <span
+                  className="pointer-events-none absolute left-1 top-1/2 -translate-y-1/2 text-foreground-soft text-xs"
+                  aria-hidden="true"
+                >
+                  $
+                </span>
+                <input
+                  name="unitPrice"
+                  type="number"
+                  step="0.01"
+                  defaultValue={item.unitPrice}
+                  className="w-full bg-transparent border-b border-transparent hover:border-border focus:border-accent focus:outline-none pl-4 pr-1 py-0.5 tabular-nums text-foreground text-right"
+                />
+              </div>
+              <div className="text-[10px] text-foreground-soft text-right -mt-1">
+                per {item.unit}
+              </div>
             </div>
-          </div>
-          <div className="col-span-3 sm:col-span-2">
-            <select
-              name="kind"
-              defaultValue={item.kind}
-              className="w-full bg-transparent border-b border-transparent hover:border-border focus:border-accent focus:outline-none px-1 py-0.5 -mx-1 text-foreground"
+            <div className="col-span-3 sm:col-span-2">
+              <select
+                name="kind"
+                defaultValue={item.kind}
+                className="w-full bg-transparent border-b border-transparent hover:border-border focus:border-accent focus:outline-none px-1 py-0.5 -mx-1 text-foreground"
+              >
+                <option value="material">Material</option>
+                <option value="labor">Labor</option>
+              </select>
+            </div>
+          </AutoSaveForm>
+          <div className="col-span-12 sm:col-span-1 flex justify-end">
+            <button
+              type="button"
+              disabled={isPending}
+              onClick={() => {
+                if (!confirm(`Delete "${item.description}"?`)) return
+                startTransition(async () => {
+                  await deleteAction(item.id)
+                })
+              }}
+              className="text-xs text-foreground-soft opacity-0 group-hover:opacity-100 hover:text-danger transition-all disabled:opacity-50"
+              title="Delete item"
             >
-              <option value="material">Material</option>
-              <option value="labor">Labor</option>
-            </select>
+              ✕
+            </button>
           </div>
-        </AutoSaveForm>
-        <div className="col-span-12 sm:col-span-1 flex justify-end">
-          <button
-            type="button"
-            disabled={isPending}
-            onClick={() => {
-              if (!confirm(`Delete "${item.description}"?`)) return
-              startTransition(async () => {
-                await deleteAction(item.id)
-              })
-            }}
-            className="text-xs text-foreground-soft opacity-0 group-hover:opacity-100 hover:text-danger transition-all disabled:opacity-50"
-            title="Delete item"
-          >
-            ✕
-          </button>
         </div>
       </div>
+
+      {isLabor && presetsOpen && (
+        <PresetsPanel
+          serviceId={item.id}
+          serviceDescription={item.description}
+          presets={presets}
+          materials={materials}
+          addAction={addPresetAction}
+          updateAction={updatePresetAction}
+          removeAction={removePresetAction}
+        />
+      )}
+    </div>
+  )
+}
+
+function PresetsPanel({
+  serviceId,
+  serviceDescription,
+  presets,
+  materials,
+  addAction,
+  updateAction,
+  removeAction,
+}: {
+  serviceId: string
+  serviceDescription: string
+  presets: PresetView[]
+  materials: CatalogItemView[]
+  addAction: (serviceId: string, formData: FormData) => Promise<{ ok: boolean; error?: string }>
+  updateAction: (presetId: string, formData: FormData) => Promise<{ ok: boolean; error?: string }>
+  removeAction: (presetId: string) => Promise<void>
+}) {
+  const [isPending, startTransition] = useTransition()
+  const [error, setError] = useState<string>("")
+  const [query, setQuery] = useState("")
+  const [open, setOpen] = useState(false)
+  const [selectedMaterialId, setSelectedMaterialId] = useState<string>("")
+  const [selectedLabel, setSelectedLabel] = useState<string>("")
+  const formRef = useRef<HTMLFormElement>(null)
+
+  const linkedIds = useMemo(() => new Set(presets.map((p) => p.materialId)), [presets])
+
+  const matches = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    let pool = materials.filter((m) => !linkedIds.has(m.id))
+    if (q) pool = pool.filter((m) => m.description.toLowerCase().includes(q))
+    return pool.slice(0, 10)
+  }, [materials, linkedIds, query])
+
+  return (
+    <div className="bg-accent-soft/30 border-t border-border px-4 py-3">
+      <p className="text-xs text-foreground-soft mb-2">
+        Suggested materials when this service is added to a project
+      </p>
+
+      {presets.length > 0 && (
+        <ul className="space-y-1 mb-3">
+          {presets.map((p) => (
+            <li
+              key={p.id}
+              className="grid grid-cols-12 gap-2 items-center text-sm bg-surface border border-border rounded px-2 py-1.5"
+            >
+              <div className="col-span-12 sm:col-span-7 truncate text-foreground">
+                {p.materialDescription}
+                <span className="text-[10px] text-foreground-soft ml-2 tabular-nums">
+                  ${p.materialUnitPrice.toFixed(2)}/{p.materialUnit}
+                </span>
+              </div>
+              <AutoSaveForm
+                action={updateAction.bind(null, p.id)}
+                className="col-span-9 sm:col-span-4 flex items-center gap-1.5"
+              >
+                <label className="text-[10px] text-foreground-soft">Default qty:</label>
+                <input
+                  name="defaultQty"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  defaultValue={p.defaultQty}
+                  className="w-20 border border-border rounded px-1.5 py-0.5 bg-surface text-xs tabular-nums text-foreground focus:outline-none focus:ring-1 focus:ring-accent"
+                />
+                <span className="text-[10px] text-foreground-soft">{p.materialUnit}</span>
+              </AutoSaveForm>
+              <div className="col-span-3 sm:col-span-1 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!confirm(`Remove "${p.materialDescription}" from this service's presets?`)) return
+                    startTransition(async () => {
+                      await removeAction(p.id)
+                    })
+                  }}
+                  className="text-xs text-foreground-soft hover:text-danger transition-colors"
+                  title="Remove preset"
+                >
+                  ✕
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <form
+        ref={formRef}
+        action={(fd) =>
+          startTransition(async () => {
+            setError("")
+            if (!selectedMaterialId) {
+              setError("Pick a material from the dropdown")
+              return
+            }
+            fd.set("materialId", selectedMaterialId)
+            const r = await addAction(serviceId, fd)
+            if (!r.ok) {
+              setError(r.error ?? "Failed to add preset")
+              return
+            }
+            // Reset
+            setQuery("")
+            setSelectedMaterialId("")
+            setSelectedLabel("")
+            formRef.current?.reset()
+          })
+        }
+        className="flex flex-wrap items-end gap-2"
+      >
+        <div className="flex-1 min-w-48 relative">
+          <label className="block text-[10px] text-foreground-muted mb-0.5">
+            Add material to {serviceDescription.length > 30 ? serviceDescription.slice(0, 30) + "…" : serviceDescription}
+          </label>
+          <input
+            type="text"
+            value={query || selectedLabel}
+            onChange={(e) => {
+              setQuery(e.target.value)
+              setSelectedMaterialId("")
+              setSelectedLabel("")
+              setOpen(true)
+            }}
+            onFocus={() => setOpen(true)}
+            onBlur={() => setTimeout(() => setOpen(false), 150)}
+            placeholder={
+              materials.length === 0
+                ? "Add a material to your catalog first…"
+                : "Search materials…"
+            }
+            className="w-full border border-border rounded px-2 py-1 bg-surface focus:outline-none focus:ring-1 focus:ring-accent text-sm"
+            autoComplete="off"
+          />
+          {open && matches.length > 0 && (
+            <div className="absolute z-10 left-0 right-0 mt-1 max-h-56 overflow-y-auto bg-surface border border-border rounded-md shadow-lg">
+              {matches.map((m) => (
+                <button
+                  key={m.id}
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => {
+                    setSelectedMaterialId(m.id)
+                    setSelectedLabel(m.description)
+                    setQuery("")
+                    setOpen(false)
+                  }}
+                  className="w-full text-left px-2 py-1.5 hover:bg-accent-soft text-xs flex items-center justify-between gap-2"
+                >
+                  <span className="flex-1 truncate text-foreground">{m.description}</span>
+                  <span className="text-[10px] text-foreground-soft tabular-nums">
+                    ${m.unitPrice.toFixed(2)}/{m.unit}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+        <div>
+          <label className="block text-[10px] text-foreground-muted mb-0.5">Default qty</label>
+          <input
+            name="defaultQty"
+            type="number"
+            step="0.01"
+            min="0"
+            defaultValue="1"
+            className="w-20 border border-border rounded px-2 py-1 bg-surface text-sm tabular-nums focus:outline-none focus:ring-1 focus:ring-accent"
+          />
+        </div>
+        <button
+          type="submit"
+          disabled={isPending || !selectedMaterialId}
+          className="px-3 py-1 bg-accent text-white rounded text-xs font-medium hover:bg-accent-hover disabled:opacity-50"
+        >
+          {isPending ? "Adding…" : "Add"}
+        </button>
+        {error && <span className="text-xs text-danger w-full">{error}</span>}
+      </form>
     </div>
   )
 }

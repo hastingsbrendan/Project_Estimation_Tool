@@ -13,7 +13,9 @@ export function AutoSaveForm({
   className,
   ...rest
 }: {
-  action: (formData: FormData) => Promise<void>
+  // Action's return value is ignored by the auto-save UI — accept any
+  // shape so we don't have to wrap server actions that return { ok, error }.
+  action: (formData: FormData) => Promise<unknown>
   children: ReactNode
   className?: string
 } & Omit<FormHTMLAttributes<HTMLFormElement>, "action">) {

@@ -167,9 +167,31 @@ model CatalogItem {
   updatedAt   DateTime @updatedAt
   userId      String
 
-  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  lineItems LineItem[]
+  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lineItems       LineItem[]
+  servicePresets  CatalogPreset[] @relation("ServicePresets")  // when this is a labor item, these are its bundled materials
+  materialPresets CatalogPreset[] @relation("MaterialPresets") // when this is a material, these are presets that include it
 
   @@index([userId])
   @@index([trade])
+}
+
+/// Bundles materials with services. Per-user via the CatalogItem ownership chain.
+/// When adding a service line item to a project, we surface its presets so
+/// the contractor can accept-all (or pick a subset) and skip individually
+/// searching for the typical materials.
+model CatalogPreset {
+  id         String   @id @default(cuid())
+  serviceId  String   // CatalogItem with kind="labor"
+  materialId String   // CatalogItem with kind="material"
+  defaultQty Float    @default(1)
+  notes      String?
+  createdAt  DateTime @default(now())
+
+  service  CatalogItem @relation("ServicePresets", fields: [serviceId], references: [id], onDelete: Cascade)
+  material CatalogItem @relation("MaterialPresets", fields: [materialId], references: [id], onDelete: Cascade)
+
+  @@unique([serviceId, materialId])
+  @@index([serviceId])
+  @@index([materialId])
 }
