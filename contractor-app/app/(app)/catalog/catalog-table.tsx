@@ -235,13 +235,18 @@ export function CatalogTable({
       ) : (
         <div className="bg-surface border border-border rounded-lg divide-y divide-border">
           <div className="hidden sm:grid grid-cols-12 gap-2 px-4 py-2 bg-surface-muted text-[10px] font-medium uppercase tracking-wider text-foreground-soft">
-            <div className="col-span-5">Description</div>
+            <div className={kindLock ? "col-span-7" : "col-span-5"}>Description</div>
             <div className="col-span-2">Trade</div>
             <div className="col-span-1">Unit</div>
             <div className="col-span-1 text-right">Price / unit</div>
-            <div className="col-span-2" title="Determines whether this rolls up to the project's Services or Materials sub-table">
-              Service / Material
-            </div>
+            {!kindLock && (
+              <div
+                className="col-span-2"
+                title="Determines whether this rolls up to the project's Services or Materials sub-table"
+              >
+                Service / Material
+              </div>
+            )}
             <div className="col-span-1"></div>
           </div>
           {filtered.map((item) => (
@@ -250,6 +255,7 @@ export function CatalogTable({
               item={item}
               presets={item.kind === "labor" ? presetsByService[item.id] ?? [] : []}
               materials={materials}
+              kindLock={kindLock}
               updateAction={updateAction}
               deleteAction={deleteAction}
               addPresetAction={addPresetAction}
@@ -318,6 +324,7 @@ function CatalogRow({
   item,
   presets,
   materials,
+  kindLock,
   updateAction,
   deleteAction,
   addPresetAction,
@@ -327,6 +334,7 @@ function CatalogRow({
   item: CatalogItemView
   presets: PresetView[]
   materials: CatalogItemView[]
+  kindLock?: "material" | "labor"
   updateAction: (id: string, formData: FormData) => Promise<void>
   deleteAction: (id: string) => Promise<void>
   addPresetAction: (
@@ -345,15 +353,21 @@ function CatalogRow({
   const isLabor = item.kind === "labor"
   const hasPresets = presets.length > 0
 
+  // When kindLock is set, the kind column is hidden so we widen Description.
+  // The inner grid is grid-cols-11 (NOT 12) so its columns line up exactly
+  // with the header's grid-cols-12 — col-span-X / 11 within col-span-11 / 12
+  // = X/12, matching the header's col-span-X / 12 directly.
+  const descSpan = kindLock ? "sm:col-span-7" : "sm:col-span-5"
+
   return (
     <div className="hover:bg-surface-muted/50 transition-colors group">
       <div className="px-4 py-2">
         <div className="grid grid-cols-12 gap-2 items-center text-sm">
           <AutoSaveForm
             action={updateAction.bind(null, item.id)}
-            className="col-span-12 sm:col-span-11 grid grid-cols-12 gap-2 items-center"
+            className="col-span-12 sm:col-span-11 grid grid-cols-11 gap-2 items-center"
           >
-            <div className="col-span-12 sm:col-span-5">
+            <div className={`col-span-12 ${descSpan}`}>
               <input
                 name="description"
                 defaultValue={item.description}
@@ -411,21 +425,27 @@ function CatalogRow({
                 per {item.unit}
               </div>
             </div>
-            <div className="col-span-3 sm:col-span-2">
-              <select
-                name="kind"
-                defaultValue={item.kind}
-                className={`w-full text-xs font-medium rounded-full px-2.5 py-0.5 cursor-pointer focus:outline-none focus:ring-1 focus:ring-accent appearance-none ${
-                  item.kind === "labor"
-                    ? "bg-blue-50 text-blue-700 border border-blue-200"
-                    : "bg-amber-50 text-amber-800 border border-amber-200"
-                }`}
-                title="Service rolls up to Services sub-table; Material rolls up to Materials sub-table"
-              >
-                <option value="material">Material</option>
-                <option value="labor">Service</option>
-              </select>
-            </div>
+            {!kindLock && (
+              <div className="col-span-3 sm:col-span-2">
+                <select
+                  name="kind"
+                  defaultValue={item.kind}
+                  className={`w-full text-xs font-medium rounded-full px-2.5 py-0.5 cursor-pointer focus:outline-none focus:ring-1 focus:ring-accent appearance-none ${
+                    item.kind === "labor"
+                      ? "bg-blue-50 text-blue-700 border border-blue-200"
+                      : "bg-amber-50 text-amber-800 border border-amber-200"
+                  }`}
+                  title="Service rolls up to Services sub-table; Material rolls up to Materials sub-table"
+                >
+                  <option value="material">Material</option>
+                  <option value="labor">Service</option>
+                </select>
+              </div>
+            )}
+            {/* When kindLock is set we still need to submit the kind so the
+                row never accidentally gets mutated to a different kind by
+                AutoSaveForm. */}
+            {kindLock && <input type="hidden" name="kind" value={kindLock} />}
           </AutoSaveForm>
           <div className="col-span-12 sm:col-span-1 flex justify-end">
             <button
