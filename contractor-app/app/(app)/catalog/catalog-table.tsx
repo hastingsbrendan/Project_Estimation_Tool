@@ -36,6 +36,7 @@ const TRADES = [
 export function CatalogTable({
   items,
   presetsByService,
+  kindLock,
   createAction,
   updateAction,
   deleteAction,
@@ -46,6 +47,14 @@ export function CatalogTable({
 }: {
   items: CatalogItemView[]
   presetsByService: Record<string, PresetView[]>
+  /**
+   * When set, the table is scoped to one catalog kind:
+   * - filters visible rows to that kind
+   * - hides the kind selector on the Add Item form (auto-sets it)
+   * Row-level kind dropdowns stay editable so users can still move items
+   * between catalogs by changing the kind.
+   */
+  kindLock?: "material" | "labor"
   createAction: (formData: FormData) => Promise<void>
   updateAction: (id: string, formData: FormData) => Promise<void>
   deleteAction: (id: string) => Promise<void>
@@ -66,16 +75,23 @@ export function CatalogTable({
   const [confirmReset, setConfirmReset] = useState(false)
   const [isPending, startTransition] = useTransition()
 
+  // Apply kindLock first, then user filters.
+  const scopedItems = useMemo(
+    () => (kindLock ? items.filter((i) => i.kind === kindLock) : items),
+    [items, kindLock],
+  )
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
-    return items.filter((i) => {
+    return scopedItems.filter((i) => {
       if (trade && i.trade !== trade) return false
       if (q && !i.description.toLowerCase().includes(q)) return false
       return true
     })
-  }, [items, search, trade])
+  }, [scopedItems, search, trade])
 
-  // Materials list for the preset typeahead — frozen view of all materials.
+  // Materials list for the preset typeahead — always sourced from the full
+  // items prop (so a Services catalog page still has access to all materials).
   const materials = useMemo(() => items.filter((i) => i.kind === "material"), [items])
 
   return (
@@ -101,8 +117,8 @@ export function CatalogTable({
         {TRADES.map((t) => {
           const count =
             t.value === ""
-              ? items.length
-              : items.filter((i) => i.trade === t.value).length
+              ? scopedItems.length
+              : scopedItems.filter((i) => i.trade === t.value).length
           return (
             <button
               key={t.value}
@@ -124,17 +140,21 @@ export function CatalogTable({
         <div id="add-form" className="bg-accent-soft/40 border border-accent rounded-lg p-4">
           <form
             action={async (fd) => {
+              if (kindLock) fd.set("kind", kindLock)
               await createAction(fd)
               setShowAdd(false)
             }}
             className="grid grid-cols-12 gap-2 items-end text-sm"
           >
-            <div className="col-span-12 sm:col-span-4">
-              <label className="block text-xs text-foreground-muted mb-0.5">Description *</label>
+            {kindLock && <input type="hidden" name="kind" value={kindLock} />}
+            <div className={`col-span-12 ${kindLock ? "sm:col-span-6" : "sm:col-span-4"}`}>
+              <label className="block text-xs text-foreground-muted mb-0.5">
+                {kindLock === "labor" ? "Service description" : kindLock === "material" ? "Material description" : "Description"} *
+              </label>
               <input
                 name="description"
                 required
-                placeholder="e.g. 2x4 stud, 8ft, SPF"
+                placeholder={kindLock === "labor" ? "e.g. Frame interior partition wall" : "e.g. 2x4 stud, 8ft, SPF"}
                 className="w-full border border-border rounded px-2 py-1.5 bg-surface focus:outline-none focus:ring-1 focus:ring-accent"
               />
             </div>
@@ -175,17 +195,19 @@ export function CatalogTable({
                 />
               </div>
             </div>
-            <div className="col-span-6 sm:col-span-2">
-              <label className="block text-xs text-foreground-muted mb-0.5">Service / Material</label>
-              <select
-                name="kind"
-                defaultValue="material"
-                className="w-full border border-border rounded px-2 py-1.5 bg-surface focus:outline-none focus:ring-1 focus:ring-accent"
-              >
-                <option value="material">Material</option>
-                <option value="labor">Service</option>
-              </select>
-            </div>
+            {!kindLock && (
+              <div className="col-span-6 sm:col-span-2">
+                <label className="block text-xs text-foreground-muted mb-0.5">Service / Material</label>
+                <select
+                  name="kind"
+                  defaultValue="material"
+                  className="w-full border border-border rounded px-2 py-1.5 bg-surface focus:outline-none focus:ring-1 focus:ring-accent"
+                >
+                  <option value="material">Material</option>
+                  <option value="labor">Service</option>
+                </select>
+              </div>
+            )}
             <div className="col-span-12 sm:col-span-1 flex gap-1">
               <button
                 type="submit"

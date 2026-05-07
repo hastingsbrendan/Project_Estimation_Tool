@@ -26,10 +26,16 @@ export default async function AppLayout({ children }: { children: React.ReactNod
               Projects
             </Link>
             <Link
-              href="/catalog"
+              href="/catalog/services"
               className="px-2 py-1 rounded-md text-foreground-muted hover:bg-accent-soft hover:text-foreground transition-colors"
             >
-              Catalog
+              Services
+            </Link>
+            <Link
+              href="/catalog/materials"
+              className="px-2 py-1 rounded-md text-foreground-muted hover:bg-accent-soft hover:text-foreground transition-colors"
+            >
+              Materials
             </Link>
           </nav>
           <div className="flex items-center gap-3 shrink-0">
