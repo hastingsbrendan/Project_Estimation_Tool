@@ -1,19 +1,21 @@
 "use server"
 
-import { auth } from "@/auth"
 import { prisma } from "@/lib/db"
 import { revalidatePath } from "next/cache"
 import { ProposalPdf } from "@/lib/pdf/proposal-pdf"
 import { renderToBuffer } from "@react-pdf/renderer"
 import { calcEstimate, formatCurrency } from "@/lib/calc"
+import { requireProject as requireProjectBase } from "@/lib/auth-helpers"
 
+/**
+ * Local extension of `requireProject` that also fetches the sections + line
+ * items needed for proposal PDF rendering. Wraps the shared helper so the
+ * auth/ownership check stays in one place.
+ */
 async function requireProject(projectId: string) {
-  const session = await auth()
-  if (!session?.user?.email) throw new Error("Unauthorized")
-  const user = await prisma.user.findUnique({ where: { email: session.user.email } })
-  if (!user) throw new Error("User not found")
+  const { userId } = await requireProjectBase(projectId)
   const project = await prisma.project.findFirst({
-    where: { id: projectId, userId: user.id },
+    where: { id: projectId, userId },
     include: {
       sections: {
         include: { lineItems: { orderBy: { order: "asc" } } },
@@ -22,7 +24,7 @@ async function requireProject(projectId: string) {
     },
   })
   if (!project) throw new Error("Project not found")
-  return { project, user }
+  return { project, userId }
 }
 
 export async function sendProposalEmail(

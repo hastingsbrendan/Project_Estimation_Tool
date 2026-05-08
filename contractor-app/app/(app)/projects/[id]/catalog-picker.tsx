@@ -1,7 +1,7 @@
 "use client"
 
 import { useId, useMemo, useRef, useState } from "react"
-import type { AddLineItemResult } from "./actions"
+import type { AddLineItemError, AddLineItemResult } from "./actions"
 
 export type CatalogPickerItem = {
   id: string
@@ -42,13 +42,14 @@ export function AddLineItemForm({
   placeholder,
   buttonLabel,
 }: {
-  action: (formData: FormData) => Promise<AddLineItemResult>
+  action: (formData: FormData) => Promise<AddLineItemResult | AddLineItemError>
   catalog: CatalogPickerItem[]
   lockKind?: "material" | "labor"
   onAfterAdd?: (result: AddLineItemResult) => void
   placeholder?: string
   buttonLabel?: string
 }) {
+  const [error, setError] = useState<string>("")
   const id = useId()
   const [query, setQuery] = useState("")
   const [tradeFilter, setTradeFilter] = useState<string>("")
@@ -105,7 +106,13 @@ export function AddLineItemForm({
         // If a kind is locked, force it onto the form regardless of any
         // previously-typed value or stale ref.
         if (lockKind) fd.set("kind", lockKind)
+        setError("")
         const result = await action(fd)
+        if (!result.ok) {
+          setError(result.error)
+          setTimeout(() => setError(""), 4000)
+          return
+        }
         formRef.current?.reset()
         setQuery("")
         setSelectedId("")
@@ -247,6 +254,14 @@ export function AddLineItemForm({
           </button>
         </div>
       </div>
+      {error && (
+        <p
+          aria-live="polite"
+          className="mt-2 text-xs text-danger bg-red-50 border border-red-200 rounded px-2 py-1"
+        >
+          {error}
+        </p>
+      )}
     </form>
   )
 }

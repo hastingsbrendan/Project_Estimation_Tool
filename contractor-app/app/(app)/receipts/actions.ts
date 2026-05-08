@@ -1,11 +1,11 @@
 "use server"
 
-import { auth } from "@/auth"
 import { prisma } from "@/lib/db"
 import { revalidatePath } from "next/cache"
 import { redirect } from "next/navigation"
 import { put, del } from "@vercel/blob"
 import { parseReceiptWithClaude } from "@/lib/ai/receipt-parser"
+import { requireReceipt, requireUserId } from "@/lib/auth-helpers"
 
 const MAX_BYTES = 12 * 1024 * 1024 // 12 MB
 const ALLOWED_TYPES = new Set([
@@ -16,23 +16,6 @@ const ALLOWED_TYPES = new Set([
   "image/heif",
   "application/pdf",
 ])
-
-async function requireUserId(): Promise<string> {
-  const session = await auth()
-  if (!session?.user?.email) throw new Error("Unauthorized")
-  const user = await prisma.user.findUnique({ where: { email: session.user.email } })
-  if (!user) throw new Error("User not found")
-  return user.id
-}
-
-async function requireReceipt(receiptId: string) {
-  const userId = await requireUserId()
-  const receipt = await prisma.receipt.findFirst({
-    where: { id: receiptId, userId },
-  })
-  if (!receipt) throw new Error("Receipt not found")
-  return { receipt, userId }
-}
 
 function parseFloatSafe(v: FormDataEntryValue | null, fallback = 0): number {
   const n = Number(v ?? fallback)
@@ -136,10 +119,24 @@ async function runParse(receiptId: string, imageBuffer: Buffer, mediaType: strin
     return
   }
 
-  // Atomic write: store header fields + replace any existing line items.
-  await prisma.$transaction([
-    prisma.receiptItem.deleteMany({ where: { receiptId } }),
-    prisma.receipt.update({
+  // Atomic write: replace existing line items + update header fields. We
+  // can't put a `createMany` *and* an `update` in a single transaction array
+  // alongside a `deleteMany` cleanly (Prisma's typed transaction array
+  // requires homogeneous shapes for createMany), so use the interactive
+  // transaction form which is clearer anyway.
+  const itemRows = parsed.data.items.map((it, i) => ({
+    receiptId,
+    description: it.description,
+    quantity: it.quantity,
+    unit: it.unit ?? "ea",
+    unitPrice: it.unitPrice,
+    lineTotal: it.lineTotal ?? null,
+    sku: it.sku ?? null,
+    order: i,
+  }))
+  await prisma.$transaction(async (tx) => {
+    await tx.receiptItem.deleteMany({ where: { receiptId } })
+    await tx.receipt.update({
       where: { id: receiptId },
       data: {
         vendor: parsed.data.vendor ?? null,
@@ -151,22 +148,11 @@ async function runParse(receiptId: string, imageBuffer: Buffer, mediaType: strin
         parseError: null,
         parseRawJson: parsed.raw ?? null,
       },
-    }),
-    ...parsed.data.items.map((it, i) =>
-      prisma.receiptItem.create({
-        data: {
-          receiptId,
-          description: it.description,
-          quantity: it.quantity,
-          unit: it.unit ?? "ea",
-          unitPrice: it.unitPrice,
-          lineTotal: it.lineTotal ?? null,
-          sku: it.sku ?? null,
-          order: i,
-        },
-      }),
-    ),
-  ])
+    })
+    if (itemRows.length > 0) {
+      await tx.receiptItem.createMany({ data: itemRows })
+    }
+  })
 }
 
 /** Re-run Claude vision parse on an existing receipt (e.g. after env-var added). */
@@ -254,7 +240,9 @@ export async function addReceiptItem(
 ): Promise<void> {
   await requireReceipt(receiptId)
   const description = String(formData.get("description") ?? "").trim()
-  if (!description) throw new Error("Description is required")
+  // Empty description is also blocked client-side by `required`. Silent
+  // early-return is fine — no UI state to surface a structured error to.
+  if (!description) return
   const quantity = parseFloatSafe(formData.get("quantity"), 1)
   const unit = String(formData.get("unit") ?? "ea").trim() || "ea"
   const unitPrice = parseFloatSafe(formData.get("unitPrice"))
@@ -316,6 +304,8 @@ export async function deleteReceiptItem(
   itemId: string,
 ): Promise<void> {
   await requireReceipt(receiptId)
-  await prisma.receiptItem.delete({ where: { id: itemId } })
+  // Scope on receiptId so we can never delete an item that belongs to a
+  // different receipt — even if the form was tampered with.
+  await prisma.receiptItem.deleteMany({ where: { id: itemId, receiptId } })
   revalidatePath(`/receipts/${receiptId}`)
 }

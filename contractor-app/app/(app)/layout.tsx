@@ -21,25 +21,25 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <nav className="flex items-center gap-1 text-sm">
             <Link
               href="/projects"
-              className="px-2 py-1 rounded-md text-foreground-muted hover:bg-accent-soft hover:text-foreground transition-colors"
+              className="px-3 py-2 rounded-md text-foreground-muted hover:bg-accent-soft hover:text-foreground transition-colors"
             >
               Projects
             </Link>
             <Link
               href="/receipts"
-              className="px-2 py-1 rounded-md text-foreground-muted hover:bg-accent-soft hover:text-foreground transition-colors"
+              className="px-3 py-2 rounded-md text-foreground-muted hover:bg-accent-soft hover:text-foreground transition-colors"
             >
               Receipts
             </Link>
             <Link
               href="/catalog/services"
-              className="px-2 py-1 rounded-md text-foreground-muted hover:bg-accent-soft hover:text-foreground transition-colors"
+              className="px-3 py-2 rounded-md text-foreground-muted hover:bg-accent-soft hover:text-foreground transition-colors"
             >
               Services
             </Link>
             <Link
               href="/catalog/materials"
-              className="px-2 py-1 rounded-md text-foreground-muted hover:bg-accent-soft hover:text-foreground transition-colors"
+              className="px-3 py-2 rounded-md text-foreground-muted hover:bg-accent-soft hover:text-foreground transition-colors"
             >
               Materials
             </Link>

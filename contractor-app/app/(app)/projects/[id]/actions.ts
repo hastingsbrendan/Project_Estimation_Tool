@@ -1,18 +1,8 @@
 "use server"
 
-import { auth } from "@/auth"
 import { prisma } from "@/lib/db"
 import { revalidatePath } from "next/cache"
-
-async function requireProject(projectId: string) {
-  const session = await auth()
-  if (!session?.user?.email) throw new Error("Unauthorized")
-  const user = await prisma.user.findUnique({ where: { email: session.user.email } })
-  if (!user) throw new Error("User not found")
-  const project = await prisma.project.findFirst({ where: { id: projectId, userId: user.id } })
-  if (!project) throw new Error("Project not found")
-  return project
-}
+import { requireProject } from "@/lib/auth-helpers"
 
 export async function addSection(projectId: string, formData: FormData): Promise<void> {
   await requireProject(projectId)
@@ -35,17 +25,23 @@ export async function renameSection(
   await requireProject(projectId)
   const name = String(formData.get("name") ?? "").trim()
   if (!name) return
-  await prisma.section.update({ where: { id: sectionId }, data: { name } })
+  // Scope on projectId in the where clause so we never mutate another user's
+  // section even if the form was tampered with.
+  await prisma.section.updateMany({
+    where: { id: sectionId, projectId },
+    data: { name },
+  })
   revalidatePath(`/projects/${projectId}`)
 }
 
 export async function deleteSection(projectId: string, sectionId: string): Promise<void> {
   await requireProject(projectId)
-  await prisma.section.delete({ where: { id: sectionId } })
+  await prisma.section.deleteMany({ where: { id: sectionId, projectId } })
   revalidatePath(`/projects/${projectId}`)
 }
 
 export type AddLineItemResult = {
+  ok: true
   lineItemId: string
   description: string
   kind: "material" | "labor"
@@ -60,15 +56,25 @@ export type AddLineItemResult = {
   }>
 }
 
+export type AddLineItemError = { ok: false; error: string }
+
 export async function addLineItem(
   projectId: string,
   sectionId: string,
   formData: FormData,
-): Promise<AddLineItemResult> {
+): Promise<AddLineItemResult | AddLineItemError> {
   await requireProject(projectId)
 
+  // Verify the target section actually belongs to this project — otherwise
+  // a tampered form could create a line item under another user's section.
+  const section = await prisma.section.findFirst({
+    where: { id: sectionId, projectId },
+    select: { id: true },
+  })
+  if (!section) return { ok: false, error: "Section not found" }
+
   const description = String(formData.get("description") ?? "").trim()
-  if (!description) throw new Error("Description is required")
+  if (!description) return { ok: false, error: "Description is required" }
 
   const quantity = Number(formData.get("quantity") ?? 1)
   const unit = String(formData.get("unit") ?? "ea").trim() || "ea"
@@ -116,7 +122,7 @@ export async function addLineItem(
     }))
   }
 
-  return { lineItemId: created.id, description, kind, suggestedPresets }
+  return { ok: true, lineItemId: created.id, description, kind, suggestedPresets }
 }
 
 /**
@@ -130,24 +136,28 @@ export async function applyServicePresets(
   sectionId: string,
   picks: Array<{ presetId: string; quantity: number }>,
 ): Promise<{ added: number }> {
-  await requireProject(projectId)
+  const { userId } = await requireProject(projectId)
 
   if (picks.length === 0) return { added: 0 }
 
+  // Verify the section is in this project.
+  const section = await prisma.section.findFirst({
+    where: { id: sectionId, projectId },
+    select: { id: true },
+  })
+  if (!section) return { added: 0 }
+
   // Fetch all presets in one go and verify they belong to a catalog item
-  // owned by the current user (already guarded by requireProject scoping +
-  // the catalog ownership chain via CatalogItem.userId).
+  // owned by the current user.
   const presetIds = picks.map((p) => p.presetId)
   const presets = await prisma.catalogPreset.findMany({
     where: { id: { in: presetIds } },
     include: { material: true, service: true },
   })
 
-  // Drop any preset whose material isn't owned by the project's user.
-  const project = await prisma.project.findUnique({ where: { id: projectId } })
-  if (!project) throw new Error("Project not found")
+  // Drop any preset whose material isn't owned by the current user.
   const ownedPresets = presets.filter(
-    (p) => p.material.userId === project.userId && p.service.userId === project.userId,
+    (p) => p.material.userId === userId && p.service.userId === userId,
   )
 
   // Compute the next order index and bulk-insert in one go.
@@ -198,7 +208,7 @@ export async function applyServicePresets(
  * the caller can show a toast.
  */
 export async function refreshPricesFromCatalog(projectId: string): Promise<{ updated: number }> {
-  const project = await requireProject(projectId)
+  const { project } = await requireProject(projectId)
 
   const linkedItems = await prisma.lineItem.findMany({
     where: {
@@ -249,8 +259,10 @@ export async function updateLineItem(
   const kindRaw = String(formData.get("kind") ?? "material")
   const kind = kindRaw === "labor" ? "labor" : "material"
 
-  await prisma.lineItem.update({
-    where: { id: lineItemId },
+  // updateMany so we can scope by the parent section's projectId without a
+  // separate ownership lookup.
+  await prisma.lineItem.updateMany({
+    where: { id: lineItemId, section: { projectId } },
     data: {
       description,
       quantity: Number.isFinite(quantity) ? quantity : 1,
@@ -264,7 +276,9 @@ export async function updateLineItem(
 
 export async function deleteLineItem(projectId: string, lineItemId: string): Promise<void> {
   await requireProject(projectId)
-  await prisma.lineItem.delete({ where: { id: lineItemId } })
+  await prisma.lineItem.deleteMany({
+    where: { id: lineItemId, section: { projectId } },
+  })
   revalidatePath(`/projects/${projectId}`)
 }
 
@@ -311,9 +325,25 @@ export async function updateProposalContent(
   const scope = String(formData.get("scope") ?? "").trim() || null
   const exclusions = String(formData.get("exclusions") ?? "").trim() || null
   const paymentSchedule = String(formData.get("paymentSchedule") ?? "").trim() || null
+  const estStartWindow = String(formData.get("estStartWindow") ?? "").trim() || null
+  const estDuration = String(formData.get("estDuration") ?? "").trim() || null
+  const validForDaysRaw = formData.get("validForDays")
+  const validForDays =
+    validForDaysRaw !== null && String(validForDaysRaw).trim() !== ""
+      ? Math.max(0, Math.round(Number(validForDaysRaw)))
+      : undefined
   await prisma.project.update({
     where: { id: projectId },
-    data: { scope, exclusions, paymentSchedule },
+    data: {
+      scope,
+      exclusions,
+      paymentSchedule,
+      estStartWindow,
+      estDuration,
+      ...(Number.isFinite(validForDays) && validForDays !== undefined
+        ? { validForDays }
+        : {}),
+    },
   })
   revalidatePath(`/projects/${projectId}`)
   revalidatePath(`/projects/${projectId}/proposal`)
@@ -328,8 +358,8 @@ export async function moveSection(
   direction: "up" | "down",
 ): Promise<void> {
   await requireProject(projectId)
-  const section = await prisma.section.findUnique({ where: { id: sectionId } })
-  if (!section || section.projectId !== projectId) return
+  const section = await prisma.section.findFirst({ where: { id: sectionId, projectId } })
+  if (!section) return
 
   const neighbor = await prisma.section.findFirst({
     where: {
@@ -353,7 +383,10 @@ export async function moveLineItem(
   direction: "up" | "down",
 ): Promise<void> {
   await requireProject(projectId)
-  const item = await prisma.lineItem.findUnique({ where: { id: lineItemId } })
+  // Scope through section.projectId so we can't move another user's items.
+  const item = await prisma.lineItem.findFirst({
+    where: { id: lineItemId, section: { projectId } },
+  })
   if (!item) return
 
   const neighbor = await prisma.lineItem.findFirst({
@@ -456,7 +489,7 @@ export async function disableShareLink(projectId: string): Promise<void> {
  * "draft".
  */
 export async function voidAcceptance(projectId: string): Promise<void> {
-  const project = await requireProject(projectId)
+  const { project } = await requireProject(projectId)
   await prisma.project.update({
     where: { id: projectId },
     data: {

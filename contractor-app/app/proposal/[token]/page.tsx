@@ -8,6 +8,25 @@ export const metadata = {
   robots: { index: false, follow: false }, // don't index public share links
 }
 
+/**
+ * Contractor business profile, sourced from env vars so the customer-facing
+ * proposal page can display license #, address, phone, etc. without us
+ * needing a "settings" page yet. Anything missing just doesn't render.
+ */
+function getContractorProfile() {
+  return {
+    businessName: process.env.CONTRACTOR_BUSINESS_NAME ?? "Reliable Remodeling",
+    license: process.env.CONTRACTOR_LICENSE ?? null,
+    phone: process.env.CONTRACTOR_PHONE ?? null,
+    email: process.env.CONTRACTOR_EMAIL ?? null,
+    address: process.env.CONTRACTOR_ADDRESS ?? null,
+  }
+}
+
+function fmtDate(d: Date): string {
+  return d.toLocaleDateString("en-US", { dateStyle: "long" })
+}
+
 export default async function PublicProposalPage({
   params,
 }: {
@@ -40,18 +59,44 @@ export default async function PublicProposalPage({
     taxRate: project.taxRate,
   })
 
+  const contractor = getContractorProfile()
+  // Date logic: proposalDate is when the contractor first sent it (or, if
+  // they never used the email feature, when the project was created).
+  // validUntil = proposalDate + validForDays.
+  const proposalDate = project.proposalSentAt ?? project.createdAt
+  const validForDays = project.validForDays ?? 30
+  const validUntil = new Date(proposalDate.getTime() + validForDays * 86400_000)
+  const expired = !project.acceptedAt && validUntil.getTime() < Date.now()
+  // Customers should see materials + labor rolled into one "Project total"
+  // line, not the contractor's internal markup percentage. Tax is fine to
+  // itemise. We pre-add markup into the subtotal the customer sees.
+  const customerSubtotal = totals.materialSubtotal + totals.laborSubtotal + totals.markup
+
   return (
     <div className="min-h-screen bg-background">
       <header className="bg-surface border-b border-border">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 py-5 flex items-center justify-between">
-          <div className="text-sm font-bold tracking-widest text-foreground">
-            RELIABLE REMODELING
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 py-5 flex items-start justify-between gap-4 flex-wrap">
+          <div>
+            <div className="text-sm font-bold tracking-widest text-foreground">
+              {contractor.businessName.toUpperCase()}
+            </div>
+            <div className="text-[11px] text-foreground-soft mt-0.5 leading-snug">
+              {contractor.address && <div>{contractor.address}</div>}
+              {(contractor.phone || contractor.email) && (
+                <div>
+                  {contractor.phone}
+                  {contractor.phone && contractor.email && " · "}
+                  {contractor.email}
+                </div>
+              )}
+              {contractor.license && <div>License #{contractor.license}</div>}
+            </div>
           </div>
           <a
             href={`/api/pdf/proposal-public/${token}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="px-3 py-1.5 bg-accent text-white rounded-md text-sm font-medium hover:bg-accent-hover"
+            className="px-3 py-2 bg-accent text-white rounded-md text-sm font-medium hover:bg-accent-hover whitespace-nowrap"
           >
             Download PDF
           </a>
@@ -65,6 +110,18 @@ export default async function PublicProposalPage({
           <p className="text-sm text-foreground-muted mt-1">
             {project.clientName ? `Prepared for ${project.clientName}` : "Prepared for client"}
           </p>
+          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-foreground-soft">
+            <span>
+              <strong className="text-foreground-muted">Issued:</strong> {fmtDate(proposalDate)}
+            </span>
+            {!project.acceptedAt && (
+              <span className={expired ? "text-danger font-semibold" : ""}>
+                <strong className="text-foreground-muted">Valid until:</strong>{" "}
+                {fmtDate(validUntil)}
+                {expired && " — expired"}
+              </span>
+            )}
+          </div>
         </div>
 
         {(project.clientName || project.clientEmail || project.address) && (
@@ -139,11 +196,9 @@ export default async function PublicProposalPage({
 
         <section className="bg-surface border border-border rounded-lg p-5">
           <div className="space-y-1.5 text-sm">
-            <Row label="Materials" value={formatCurrency(totals.materialSubtotal)} />
-            <Row label="Labor" value={formatCurrency(totals.laborSubtotal)} />
-            {project.markupPct > 0 && (
-              <Row label={`Markup (${project.markupPct}%)`} value={formatCurrency(totals.markup)} />
-            )}
+            {/* Customers see one combined line — internal markup % is rolled in,
+               not exposed. Tax is fine to itemise. */}
+            <Row label="Project subtotal" value={formatCurrency(customerSubtotal)} />
             {project.taxRate > 0 && (
               <Row label={`Sales tax (${project.taxRate}%)`} value={formatCurrency(totals.tax)} />
             )}
@@ -155,6 +210,27 @@ export default async function PublicProposalPage({
             </span>
           </div>
         </section>
+
+        {(project.estStartWindow || project.estDuration) && (
+          <section className="bg-surface border border-border rounded-lg p-5 grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+            {project.estStartWindow && (
+              <div>
+                <p className="text-[10px] uppercase tracking-wider text-foreground-soft">
+                  Estimated start
+                </p>
+                <p className="text-foreground mt-0.5">{project.estStartWindow}</p>
+              </div>
+            )}
+            {project.estDuration && (
+              <div>
+                <p className="text-[10px] uppercase tracking-wider text-foreground-soft">
+                  Estimated duration
+                </p>
+                <p className="text-foreground mt-0.5">{project.estDuration}</p>
+              </div>
+            )}
+          </section>
+        )}
 
         {project.exclusions && (
           <section>
@@ -176,7 +252,7 @@ export default async function PublicProposalPage({
           </section>
         )}
 
-        {/* Acceptance — signed receipt or sign form */}
+        {/* Acceptance — signed receipt, expired notice, or sign form */}
         {project.acceptedAt ? (
           <section className="bg-green-50 border border-green-200 rounded-lg p-5">
             <div className="flex items-start gap-3">
@@ -190,11 +266,31 @@ export default async function PublicProposalPage({
                     timeStyle: "short",
                   })}
                 </p>
-                <p className="text-xs text-green-700 mt-2">
-                  Thanks — keep this page for your records or download the PDF above.
+                <p className="text-sm text-green-800 mt-2">
+                  Thanks — we&rsquo;ll be in touch within one business day to schedule
+                  the start of work.
                 </p>
+                <a
+                  href={`/api/pdf/proposal-public/${token}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-block mt-3 px-3 py-2 bg-green-700 text-white rounded-md text-sm font-medium hover:bg-green-800"
+                >
+                  Download signed proposal (PDF)
+                </a>
               </div>
             </div>
+          </section>
+        ) : expired ? (
+          <section className="bg-amber-50 border border-amber-200 rounded-lg p-5">
+            <p className="text-sm font-semibold text-amber-900">This proposal has expired</p>
+            <p className="text-sm text-amber-800 mt-1">
+              The pricing was good through {fmtDate(validUntil)}. Please reach out to
+              {contractor.phone || contractor.email
+                ? ` ${contractor.phone ?? contractor.email}`
+                : " your contractor"}{" "}
+              and we&rsquo;ll get you a fresh quote.
+            </p>
           </section>
         ) : (
           <section className="bg-surface border-2 border-accent rounded-lg p-5">
@@ -210,7 +306,7 @@ export default async function PublicProposalPage({
             Questions? Reply to the email this link came from, or download the PDF for your
             records.
           </p>
-          <p className="mt-1">Reliable Remodeling</p>
+          <p className="mt-1">{contractor.businessName}</p>
         </footer>
       </main>
     </div>

@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { AddLineItemForm, type CatalogPickerItem } from "./catalog-picker"
 import { SuggestedMaterialsPanel, type SuggestedPreset } from "./suggested-materials-panel"
-import type { AddLineItemResult } from "./actions"
+import type { AddLineItemError, AddLineItemResult } from "./actions"
 
 /**
  * Composes the services-only picker with the inline suggestion panel.
@@ -16,7 +16,7 @@ export function ServicesPicker({
   applyPresetsAction,
 }: {
   catalog: CatalogPickerItem[]
-  addAction: (formData: FormData) => Promise<AddLineItemResult>
+  addAction: (formData: FormData) => Promise<AddLineItemResult | AddLineItemError>
   applyPresetsAction: (
     picks: Array<{ presetId: string; quantity: number }>,
   ) => Promise<{ added: number }>

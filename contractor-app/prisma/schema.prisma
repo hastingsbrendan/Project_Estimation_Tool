@@ -75,6 +75,9 @@ model Project {
   scope           String? // proposal scope of work (markdown allowed)
   exclusions      String? // proposal exclusions
   paymentSchedule String? // proposal payment schedule
+  estStartWindow  String? // free-form, e.g. "2 weeks after signing"
+  estDuration     String? // free-form, e.g. "3-4 weeks"
+  validForDays    Int       @default(30) // proposal expires after N days from issue/sent date
   proposalSentAt  DateTime? // when the proposal email was last sent
   shareToken      String?   @unique // public read-only proposal link
   // Public proposal acceptance (recorded when client signs on /proposal/[token])

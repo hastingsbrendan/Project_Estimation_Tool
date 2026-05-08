@@ -1,17 +1,9 @@
 "use server"
 
-import { auth } from "@/auth"
 import { prisma } from "@/lib/db"
 import { revalidatePath } from "next/cache"
 import { redirect } from "next/navigation"
-
-async function requireUserId(): Promise<string> {
-  const session = await auth()
-  if (!session?.user?.email) throw new Error("Unauthorized")
-  const user = await prisma.user.findUnique({ where: { email: session.user.email } })
-  if (!user) throw new Error("User not found")
-  return user.id
-}
+import { requireUserId } from "@/lib/auth-helpers"
 
 export async function createProject(formData: FormData): Promise<void> {
   const userId = await requireUserId()

@@ -1,20 +1,8 @@
 "use server"
 
-import { auth } from "@/auth"
 import { prisma } from "@/lib/db"
 import { revalidatePath } from "next/cache"
-
-async function requireProject(projectId: string) {
-  const session = await auth()
-  if (!session?.user?.email) throw new Error("Unauthorized")
-  const user = await prisma.user.findUnique({ where: { email: session.user.email } })
-  if (!user) throw new Error("User not found")
-  const project = await prisma.project.findFirst({
-    where: { id: projectId, userId: user.id },
-  })
-  if (!project) throw new Error("Project not found")
-  return project
-}
+import { requireProject } from "@/lib/auth-helpers"
 
 function parseFloatOrNull(v: FormDataEntryValue | null): number | null {
   if (v === null) return null
@@ -49,8 +37,9 @@ export async function updateRoom(
   const heightFt = parseFloatOrNull(formData.get("heightFt")) ?? 8
   const notes = String(formData.get("notes") ?? "").trim() || null
 
-  await prisma.room.update({
-    where: { id: roomId },
+  // Scope on projectId so we never mutate another user's room.
+  await prisma.room.updateMany({
+    where: { id: roomId, projectId },
     data: {
       ...(name && { name }),
       lengthFt,
@@ -64,6 +53,6 @@ export async function updateRoom(
 
 export async function deleteRoom(projectId: string, roomId: string): Promise<void> {
   await requireProject(projectId)
-  await prisma.room.delete({ where: { id: roomId } })
+  await prisma.room.deleteMany({ where: { id: roomId, projectId } })
   revalidatePath(`/projects/${projectId}`)
 }

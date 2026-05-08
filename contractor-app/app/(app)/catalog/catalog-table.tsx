@@ -55,7 +55,7 @@ export function CatalogTable({
    * between catalogs by changing the kind.
    */
   kindLock?: "material" | "labor"
-  createAction: (formData: FormData) => Promise<void>
+  createAction: (formData: FormData) => Promise<{ ok: boolean; error?: string }>
   updateAction: (id: string, formData: FormData) => Promise<void>
   deleteAction: (id: string) => Promise<void>
   resetAction: () => Promise<void>
@@ -141,8 +141,11 @@ export function CatalogTable({
           <form
             action={async (fd) => {
               if (kindLock) fd.set("kind", kindLock)
-              await createAction(fd)
-              setShowAdd(false)
+              const r = await createAction(fd)
+              if (r.ok) setShowAdd(false)
+              // On error, the form stays open. The validation that fails
+              // here is "description is required" which is also enforced
+              // client-side via `required`, so this is just defence-in-depth.
             }}
             className="grid grid-cols-12 gap-2 items-end text-sm"
           >

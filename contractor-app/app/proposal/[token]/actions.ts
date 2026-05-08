@@ -39,6 +39,9 @@ export async function acceptProposal(
       status: true,
       acceptedAt: true,
       acceptedBy: true,
+      proposalSentAt: true,
+      createdAt: true,
+      validForDays: true,
     },
   })
   if (!project) return { ok: false, error: "Proposal not found" }
@@ -46,6 +49,19 @@ export async function acceptProposal(
   if (project.acceptedAt) {
     // Idempotent: don't overwrite the first signature.
     return { ok: true, alreadySigned: true }
+  }
+
+  // Server-side expiry check. The page also hides the form when expired,
+  // but a stale tab could still POST — refuse here too.
+  const proposalDate = project.proposalSentAt ?? project.createdAt
+  const validForDays = project.validForDays ?? 30
+  const validUntil = new Date(proposalDate.getTime() + validForDays * 86400_000)
+  if (validUntil.getTime() < Date.now()) {
+    return {
+      ok: false,
+      error:
+        "This proposal has expired. Please ask the contractor to reissue an updated quote.",
+    }
   }
 
   const h = await headers()

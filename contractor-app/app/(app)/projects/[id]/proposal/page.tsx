@@ -143,6 +143,44 @@ export default async function ProposalPage({
               className="w-full text-sm text-foreground border border-border rounded px-3 py-2 bg-surface focus:outline-none focus:ring-2 focus:ring-accent resize-y font-mono"
             />
           </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2 border-t border-border">
+            <div>
+              <label className="block text-xs font-medium text-foreground mb-1">
+                Estimated start
+              </label>
+              <input
+                name="estStartWindow"
+                defaultValue={project.estStartWindow ?? ""}
+                placeholder="e.g. 2 weeks after signing"
+                className="w-full text-sm text-foreground border border-border rounded px-2 py-1.5 bg-surface focus:outline-none focus:ring-2 focus:ring-accent"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-foreground mb-1">
+                Estimated duration
+              </label>
+              <input
+                name="estDuration"
+                defaultValue={project.estDuration ?? ""}
+                placeholder="e.g. 3-4 weeks"
+                className="w-full text-sm text-foreground border border-border rounded px-2 py-1.5 bg-surface focus:outline-none focus:ring-2 focus:ring-accent"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-foreground mb-1">
+                Valid for (days)
+              </label>
+              <input
+                name="validForDays"
+                type="number"
+                min={1}
+                max={365}
+                defaultValue={project.validForDays}
+                className="w-full text-sm text-foreground border border-border rounded px-2 py-1.5 bg-surface focus:outline-none focus:ring-2 focus:ring-accent tabular-nums"
+              />
+            </div>
+          </div>
         </AutoSaveForm>
 
         <div className="pt-4 border-t border-border">

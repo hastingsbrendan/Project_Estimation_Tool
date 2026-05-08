@@ -86,12 +86,27 @@ export function UploadReceiptButton({
                   ref={fileRef}
                   name="file"
                   type="file"
+                  // capture="environment" hints camera-first on mobile while
+                  // still allowing the picker to fall back to files (incl. PDFs)
+                  // on desktop and on iOS via the "Photo Library / Choose File"
+                  // option in the native sheet.
                   accept="image/*,application/pdf,.pdf"
+                  capture="environment"
                   required
-                  className="block w-full text-sm border border-border rounded px-2 py-1.5 bg-surface focus:outline-none focus:ring-2 focus:ring-accent file:mr-2 file:px-2 file:py-1 file:bg-accent-soft file:border-0 file:rounded file:text-foreground file:text-xs"
+                  onChange={(e) => {
+                    const f = e.currentTarget.files?.[0]
+                    if (!f) return
+                    if (f.size > 12 * 1024 * 1024) {
+                      setError("File is larger than 12 MB. Pick something smaller.")
+                      e.currentTarget.value = ""
+                    } else {
+                      setError("")
+                    }
+                  }}
+                  className="block w-full text-sm border border-border rounded px-2 py-2 bg-surface focus:outline-none focus:ring-2 focus:ring-accent file:mr-2 file:px-3 file:py-1.5 file:bg-accent-soft file:border-0 file:rounded file:text-foreground file:text-xs"
                 />
                 <p className="text-[10px] text-foreground-soft mt-1">
-                  JPG / PNG / WebP / PDF up to 12 MB.
+                  JPG / PNG / WebP / PDF up to 12 MB. Camera opens on iOS / Android.
                 </p>
               </div>
 

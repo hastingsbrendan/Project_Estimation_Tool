@@ -1,17 +1,9 @@
 "use server"
 
-import { auth } from "@/auth"
 import { prisma } from "@/lib/db"
 import { revalidatePath } from "next/cache"
 import { CATALOG_SEED } from "@/seeds/catalog"
-
-async function requireUserId(): Promise<string> {
-  const session = await auth()
-  if (!session?.user?.email) throw new Error("Unauthorized")
-  const user = await prisma.user.findUnique({ where: { email: session.user.email } })
-  if (!user) throw new Error("User not found")
-  return user.id
-}
+import { requireUserId } from "@/lib/auth-helpers"
 
 const ALLOWED_TRADES = [
   "demo",
@@ -37,10 +29,12 @@ function parseFloatSafe(v: FormDataEntryValue | null, fallback = 0): number {
   return Number.isFinite(n) ? n : fallback
 }
 
-export async function createCatalogItem(formData: FormData): Promise<void> {
+export async function createCatalogItem(
+  formData: FormData,
+): Promise<{ ok: boolean; error?: string }> {
   const userId = await requireUserId()
   const description = String(formData.get("description") ?? "").trim()
-  if (!description) throw new Error("Description is required")
+  if (!description) return { ok: false, error: "Description is required" }
 
   await prisma.catalogItem.create({
     data: {
@@ -54,6 +48,7 @@ export async function createCatalogItem(formData: FormData): Promise<void> {
     },
   })
   revalidatePath("/catalog")
+  return { ok: true }
 }
 
 export async function updateCatalogItem(itemId: string, formData: FormData): Promise<void> {

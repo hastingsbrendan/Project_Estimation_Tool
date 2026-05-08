@@ -1,9 +1,9 @@
 "use server"
 
-import { auth } from "@/auth"
 import { prisma } from "@/lib/db"
 import { revalidatePath } from "next/cache"
 import { put, del } from "@vercel/blob"
+import { requireProject } from "@/lib/auth-helpers"
 
 const MAX_BYTES = 12 * 1024 * 1024 // 12 MB per photo
 const ALLOWED_TYPES = new Set([
@@ -14,18 +14,6 @@ const ALLOWED_TYPES = new Set([
   "image/heic",
   "image/heif",
 ])
-
-async function requireProject(projectId: string) {
-  const session = await auth()
-  if (!session?.user?.email) throw new Error("Unauthorized")
-  const user = await prisma.user.findUnique({ where: { email: session.user.email } })
-  if (!user) throw new Error("User not found")
-  const project = await prisma.project.findFirst({
-    where: { id: projectId, userId: user.id },
-  })
-  if (!project) throw new Error("Project not found")
-  return project
-}
 
 export async function uploadPhoto(
   projectId: string,
@@ -114,8 +102,9 @@ export async function updatePhotoCaption(
 ): Promise<void> {
   await requireProject(projectId)
   const caption = String(formData.get("caption") ?? "").trim() || null
-  await prisma.photo.update({
-    where: { id: photoId },
+  // Scope by projectId so a tampered form can't relabel another user's photo.
+  await prisma.photo.updateMany({
+    where: { id: photoId, projectId },
     data: { caption },
   })
   revalidatePath(`/projects/${projectId}`)
