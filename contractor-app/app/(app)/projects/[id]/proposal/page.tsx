@@ -13,6 +13,7 @@ import {
 import { SendProposalForm } from "./send-proposal-form"
 import { ShareLinkPanel } from "./share-link"
 import { sendProposalEmail } from "../proposal-actions"
+import { ConfirmSubmitButton } from "../../../confirm-submit-button"
 
 export default async function ProposalPage({
   params,
@@ -231,21 +232,12 @@ export default async function ProposalPage({
               </p>
             </div>
             <form action={voidAcceptance.bind(null, project.id)}>
-              <button
-                type="submit"
-                onClick={(e) => {
-                  if (
-                    !confirm(
-                      `Void the acceptance signed by ${project.acceptedBy}? This is meant for typo corrections — keep the original record otherwise.`,
-                    )
-                  ) {
-                    e.preventDefault()
-                  }
-                }}
+              <ConfirmSubmitButton
+                confirmText={`Void the acceptance signed by ${project.acceptedBy}? This is meant for typo corrections — keep the original record otherwise.`}
                 className="text-xs text-green-700 hover:text-danger transition-colors"
               >
                 Void
-              </button>
+              </ConfirmSubmitButton>
             </form>
           </div>
         </div>

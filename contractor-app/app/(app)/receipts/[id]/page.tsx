@@ -15,6 +15,7 @@ import {
 } from "../actions"
 import { ReparseButton } from "./reparse-button"
 import { AutoParseTrigger } from "./auto-parse-trigger"
+import { ConfirmSubmitButton } from "../../confirm-submit-button"
 import { logError } from "@/lib/log"
 
 // Claude vision parse can take 10–25s; the default 10s Vercel function
@@ -432,17 +433,12 @@ export default async function ReceiptDetailPage({
           </div>
 
           <form action={deleteReceipt.bind(null, receipt.id)} className="flex justify-end">
-            <button
-              type="submit"
-              onClick={(e) => {
-                if (!confirm("Delete this receipt? This cannot be undone.")) {
-                  e.preventDefault()
-                }
-              }}
+            <ConfirmSubmitButton
+              confirmText="Delete this receipt? This cannot be undone."
               className="text-xs text-foreground-soft hover:text-danger transition-colors"
             >
               Delete receipt
-            </button>
+            </ConfirmSubmitButton>
           </form>
         </div>
       </div>
