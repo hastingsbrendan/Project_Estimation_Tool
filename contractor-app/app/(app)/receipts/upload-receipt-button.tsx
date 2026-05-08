@@ -2,6 +2,15 @@
 
 import { useRouter } from "next/navigation"
 import { useRef, useState, useTransition } from "react"
+import { compressImageIfNeeded } from "@/lib/compress-image"
+
+const HARD_LIMIT_BYTES = 20 * 1024 * 1024 // matches server's MAX_BYTES
+
+function formatBytes(n: number): string {
+  if (n < 1024) return `${n} B`
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`
+  return `${(n / 1024 / 1024).toFixed(1)} MB`
+}
 
 export function UploadReceiptButton({
   projects,
@@ -17,7 +26,13 @@ export function UploadReceiptButton({
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [pending, startTransition] = useTransition()
+  const [busy, setBusy] = useState<"compressing" | "uploading" | null>(null)
   const [error, setError] = useState<string>("")
+  const [picked, setPicked] = useState<{
+    file: File
+    originalSize: number
+    compressedSize: number | null
+  } | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
   const formRef = useRef<HTMLFormElement>(null)
 
@@ -25,9 +40,71 @@ export function UploadReceiptButton({
     ? "px-4 py-2 bg-accent text-white rounded-lg text-sm font-medium hover:bg-accent-hover transition-colors"
     : "px-3 py-1.5 bg-accent text-white rounded-md text-sm font-medium hover:bg-accent-hover transition-colors"
 
+  function reset() {
+    setError("")
+    setPicked(null)
+    setBusy(null)
+    fileRef.current && (fileRef.current.value = "")
+  }
+
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const original = e.currentTarget.files?.[0]
+    if (!original) return
+    setError("")
+    setBusy("compressing")
+    try {
+      const compressed = await compressImageIfNeeded(original)
+      const finalFile = compressed
+      if (finalFile.size > HARD_LIMIT_BYTES) {
+        setError(
+          `File is ${formatBytes(finalFile.size)} (max 20 MB). Try a smaller picture or PDF.`,
+        )
+        e.currentTarget.value = ""
+        setPicked(null)
+        setBusy(null)
+        return
+      }
+      setPicked({
+        file: finalFile,
+        originalSize: original.size,
+        compressedSize: compressed === original ? null : compressed.size,
+      })
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  async function handleSubmit(formData: FormData) {
+    if (!picked) {
+      setError("Pick a file first")
+      return
+    }
+    // Replace the raw <input>'s file with our (possibly compressed) one.
+    formData.set("file", picked.file, picked.file.name)
+    setBusy("uploading")
+    const r = await uploadAction(formData)
+    setBusy(null)
+    if (!r.ok) {
+      setError(r.error ?? "Upload failed")
+      return
+    }
+    if (r.receiptId) {
+      setOpen(false)
+      reset()
+      router.push(`/receipts/${r.receiptId}`)
+    }
+  }
+
   return (
     <>
-      <button type="button" onClick={() => setOpen(true)} className={cls}>
+      <button
+        type="button"
+        onClick={() => {
+          setOpen(true)
+          reset()
+        }}
+        className={cls}
+      >
         + Upload receipt
       </button>
 
@@ -46,8 +123,8 @@ export function UploadReceiptButton({
               <div>
                 <h2 className="text-base font-semibold text-foreground">Upload receipt</h2>
                 <p className="text-xs text-foreground-soft mt-0.5">
-                  Pick a photo or PDF. We&rsquo;ll try to parse line items with
-                  Claude on the next page.
+                  Pick a photo from your library, take a new one, or pick a PDF.
+                  Big photos get auto-compressed before upload.
                 </p>
               </div>
               <button
@@ -62,52 +139,48 @@ export function UploadReceiptButton({
 
             <form
               ref={formRef}
-              action={(fd) =>
-                startTransition(async () => {
-                  setError("")
-                  const r = await uploadAction(fd)
-                  if (!r.ok) {
-                    setError(r.error ?? "Upload failed")
-                    return
-                  }
-                  if (r.receiptId) {
-                    setOpen(false)
-                    router.push(`/receipts/${r.receiptId}`)
-                  }
-                })
-              }
+              action={(fd) => startTransition(() => handleSubmit(fd))}
               className="space-y-3"
             >
               <div>
                 <label className="block text-xs font-medium text-foreground-muted mb-1">
                   Receipt photo or PDF
                 </label>
+                {/*
+                 * No `capture` attribute → mobile browsers offer camera AND
+                 * photo library in the native picker. capture="environment"
+                 * was forcing camera-only on iOS, which Brendan hit on his
+                 * phone.
+                 */}
                 <input
                   ref={fileRef}
                   name="file"
                   type="file"
-                  // capture="environment" hints camera-first on mobile while
-                  // still allowing the picker to fall back to files (incl. PDFs)
-                  // on desktop and on iOS via the "Photo Library / Choose File"
-                  // option in the native sheet.
                   accept="image/*,application/pdf,.pdf"
-                  capture="environment"
                   required
-                  onChange={(e) => {
-                    const f = e.currentTarget.files?.[0]
-                    if (!f) return
-                    if (f.size > 12 * 1024 * 1024) {
-                      setError("File is larger than 12 MB. Pick something smaller.")
-                      e.currentTarget.value = ""
-                    } else {
-                      setError("")
-                    }
-                  }}
+                  onChange={handleFileChange}
                   className="block w-full text-sm border border-border rounded px-2 py-2 bg-surface focus:outline-none focus:ring-2 focus:ring-accent file:mr-2 file:px-3 file:py-1.5 file:bg-accent-soft file:border-0 file:rounded file:text-foreground file:text-xs"
                 />
                 <p className="text-[10px] text-foreground-soft mt-1">
-                  JPG / PNG / WebP / PDF up to 12 MB. Camera opens on iOS / Android.
+                  JPG / PNG / WebP / PDF. Up to 20 MB after compression.
                 </p>
+                {picked && (
+                  <p className="text-[10px] text-foreground-muted mt-1.5">
+                    {picked.compressedSize != null ? (
+                      <>
+                        Compressed {formatBytes(picked.originalSize)} →{" "}
+                        <strong>{formatBytes(picked.compressedSize)}</strong> for upload.
+                      </>
+                    ) : (
+                      <>Ready: {formatBytes(picked.file.size)}</>
+                    )}
+                  </p>
+                )}
+                {busy === "compressing" && (
+                  <p className="text-[10px] text-foreground-muted mt-1.5">
+                    Compressing image…
+                  </p>
+                )}
               </div>
 
               <div>
@@ -148,10 +221,10 @@ export function UploadReceiptButton({
                 </button>
                 <button
                   type="submit"
-                  disabled={pending}
+                  disabled={pending || !picked || busy !== null}
                   className="px-4 py-1.5 bg-accent text-white rounded text-sm font-medium hover:bg-accent-hover disabled:opacity-50"
                 >
-                  {pending ? "Uploading…" : "Upload"}
+                  {busy === "uploading" ? "Uploading…" : "Upload"}
                 </button>
               </div>
             </form>

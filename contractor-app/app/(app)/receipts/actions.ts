@@ -8,7 +8,7 @@ import { parseReceiptWithClaude } from "@/lib/ai/receipt-parser"
 import { requireReceipt, requireUserId } from "@/lib/auth-helpers"
 import { logError, logInfo } from "@/lib/log"
 
-const MAX_BYTES = 12 * 1024 * 1024 // 12 MB
+const MAX_BYTES = 20 * 1024 * 1024 // 20 MB. Client compresses big images first.
 const ALLOWED_TYPES = new Set([
   "image/jpeg",
   "image/png",
@@ -41,7 +41,9 @@ export async function uploadReceipt(
     if (!(file instanceof File) || file.size === 0) {
       return { ok: false, error: "No file selected" }
     }
-    if (file.size > MAX_BYTES) return { ok: false, error: "File is larger than 12 MB" }
+    if (file.size > MAX_BYTES) {
+      return { ok: false, error: "File is larger than 20 MB" }
+    }
     if (file.type && !ALLOWED_TYPES.has(file.type)) {
       return { ok: false, error: `Unsupported file type: ${file.type}` }
     }
