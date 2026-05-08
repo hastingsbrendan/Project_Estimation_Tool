@@ -6,6 +6,7 @@ import { redirect } from "next/navigation"
 import { put, del } from "@vercel/blob"
 import { parseReceiptWithClaude } from "@/lib/ai/receipt-parser"
 import { requireReceipt, requireUserId } from "@/lib/auth-helpers"
+import { logError, logInfo } from "@/lib/log"
 
 const MAX_BYTES = 12 * 1024 * 1024 // 12 MB
 const ALLOWED_TYPES = new Set([
@@ -32,6 +33,7 @@ function parseFloatSafe(v: FormDataEntryValue | null, fallback = 0): number {
 export async function uploadReceipt(
   formData: FormData,
 ): Promise<{ ok: boolean; error?: string; receiptId?: string }> {
+  const started = Date.now()
   try {
     const userId = await requireUserId()
 
@@ -82,10 +84,19 @@ export async function uploadReceipt(
 
     revalidatePath("/receipts")
     if (projectId) revalidatePath(`/projects/${projectId}`)
+    logInfo("uploadReceipt", "Uploaded receipt", {
+      userId,
+      receiptId: receipt.id,
+      projectId,
+      filename: receipt.filename,
+      sizeBytes: receipt.size,
+      durationMs: Date.now() - started,
+    })
     return { ok: true, receiptId: receipt.id }
   } catch (e) {
     // Always return an error object — never let the action throw, otherwise
     // Next.js renders a generic error page instead of our friendly modal.
+    logError("uploadReceipt", e, { durationMs: Date.now() - started })
     return {
       ok: false,
       error: e instanceof Error ? e.message : "Upload failed",
@@ -159,16 +170,29 @@ async function runParse(receiptId: string, imageBuffer: Buffer, mediaType: strin
 export async function reparseReceipt(
   receiptId: string,
 ): Promise<{ ok: boolean; error?: string }> {
+  const started = Date.now()
   const { receipt } = await requireReceipt(receiptId)
   try {
     const res = await fetch(receipt.imageUrl)
-    if (!res.ok) return { ok: false, error: `Could not fetch image (${res.status})` }
+    if (!res.ok) {
+      logError("reparseReceipt", new Error(`Image fetch ${res.status}`), {
+        receiptId,
+        imageUrl: receipt.imageUrl,
+      })
+      return { ok: false, error: `Could not fetch image (${res.status})` }
+    }
     const buffer = Buffer.from(await res.arrayBuffer())
     const mediaType = res.headers.get("content-type") ?? "image/jpeg"
     await runParse(receiptId, buffer, mediaType)
     revalidatePath(`/receipts/${receiptId}`)
+    logInfo("reparseReceipt", "Re-parsed receipt", {
+      receiptId,
+      mediaType,
+      durationMs: Date.now() - started,
+    })
     return { ok: true }
   } catch (e) {
+    logError("reparseReceipt", e, { receiptId, durationMs: Date.now() - started })
     return { ok: false, error: e instanceof Error ? e.message : "Parse failed" }
   }
 }

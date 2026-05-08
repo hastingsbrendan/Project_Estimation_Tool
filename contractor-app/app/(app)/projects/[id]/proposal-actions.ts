@@ -6,6 +6,7 @@ import { ProposalPdf } from "@/lib/pdf/proposal-pdf"
 import { renderToBuffer } from "@react-pdf/renderer"
 import { calcEstimate, formatCurrency } from "@/lib/calc"
 import { requireProject as requireProjectBase } from "@/lib/auth-helpers"
+import { logError, logInfo } from "@/lib/log"
 
 /**
  * Local extension of `requireProject` that also fetches the sections + line
@@ -162,8 +163,21 @@ export async function sendProposalEmail(
 
   if (!res.ok) {
     const body = await res.text()
+    logError("sendProposalEmail", new Error(`Resend ${res.status}`), {
+      projectId,
+      recipient,
+      status: res.status,
+      bodySnippet: body.slice(0, 200),
+    })
     return { ok: false, error: `Resend send failed (${res.status}): ${body}` }
   }
+
+  logInfo("sendProposalEmail", "Sent proposal email", {
+    projectId,
+    recipient,
+    pdfBytes: pdfBuffer.byteLength,
+    hasShareLink: !!shareUrl,
+  })
 
   await prisma.project.update({
     where: { id: projectId },

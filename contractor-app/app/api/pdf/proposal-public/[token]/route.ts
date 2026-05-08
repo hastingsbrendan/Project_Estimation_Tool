@@ -1,15 +1,20 @@
 import { prisma } from "@/lib/db"
 import { ProposalPdf } from "@/lib/pdf/proposal-pdf"
 import { renderToBuffer } from "@react-pdf/renderer"
+import { logError, logInfo } from "@/lib/log"
 
 export const runtime = "nodejs"
 export const maxDuration = 60
+
+const SCOPE = "/api/pdf/proposal-public"
 
 export async function GET(
   _req: Request,
   { params }: { params: Promise<{ token: string }> },
 ) {
+  const started = Date.now()
   const { token } = await params
+  try {
   if (!token || token.length < 16) return new Response("Not found", { status: 404 })
 
   const project = await prisma.project.findFirst({
@@ -53,6 +58,11 @@ export async function GET(
   )
 
   const safeName = project.name.replace(/[^a-zA-Z0-9._-]/g, "_") || "project"
+  logInfo(SCOPE, "Rendered public proposal PDF", {
+    projectId: project.id,
+    bufferBytes: buffer.byteLength,
+    durationMs: Date.now() - started,
+  })
   return new Response(new Uint8Array(buffer), {
     headers: {
       "Content-Type": "application/pdf",
@@ -60,4 +70,8 @@ export async function GET(
       "Cache-Control": "private, no-store",
     },
   })
+  } catch (e) {
+    logError(SCOPE, e, { token: token?.slice(0, 8) + "...", durationMs: Date.now() - started })
+    throw e
+  }
 }

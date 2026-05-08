@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/db"
 import { revalidatePath } from "next/cache"
 import { headers } from "next/headers"
+import { logError, logInfo } from "@/lib/log"
 
 const MIN_TOKEN_LEN = 16
 const MAX_NAME_LEN = 200
@@ -20,6 +21,7 @@ export async function acceptProposal(
   token: string,
   formData: FormData,
 ): Promise<{ ok: boolean; error?: string; alreadySigned?: boolean }> {
+  try {
   if (!token || token.length < MIN_TOKEN_LEN) {
     return { ok: false, error: "Invalid link" }
   }
@@ -87,5 +89,18 @@ export async function acceptProposal(
   revalidatePath(`/proposal/${token}`)
   revalidatePath(`/projects/${project.id}/proposal`)
   revalidatePath("/projects")
+  logInfo("acceptProposal", "Proposal signed", {
+    projectId: project.id,
+    signerName: name,
+    ip,
+  })
   return { ok: true }
+  } catch (e) {
+    logError("acceptProposal", e, { tokenPrefix: token?.slice(0, 8) + "..." })
+    return {
+      ok: false,
+      error:
+        e instanceof Error ? e.message : "Could not record acceptance — please try again",
+    }
+  }
 }

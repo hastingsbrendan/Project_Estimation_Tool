@@ -9,3 +9,9 @@ This version has breaking changes — APIs, conventions, and file structure may 
 Production runs on Turso (libsql). `prisma migrate deploy` does NOT speak `libsql://`, and the Vercel build does NOT apply migrations. If you change `prisma/schema.prisma` and create a migration, you MUST apply the SQL to Turso by hand (Turso dashboard SQL console or `turso db shell`) before/immediately after the next deploy — otherwise every page that reads the changed table 500s with "This page couldn't load. A server error occurred."
 
 Full runbook: `MIGRATIONS.md`. Always remind the user to apply the SQL before pushing schema changes.
+
+# Errors are observable via /api/health and logged scopes
+
+`lib/log.ts` exposes `logInfo` / `logWarn` / `logError`. When you add a server action or route handler that does anything non-trivial (DB write, external API, upload, PDF render), wrap the work in a try/catch + `logError(SCOPE, e, context)`. The scope is what makes the log line searchable in Vercel.
+
+Triage runbook: `TRIAGE.md`. Health endpoint: `/api/health`.
