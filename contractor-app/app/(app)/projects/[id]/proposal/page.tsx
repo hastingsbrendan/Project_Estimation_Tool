@@ -4,7 +4,12 @@ import { auth } from "@/auth"
 import { prisma } from "@/lib/db"
 import { calcEstimate, formatCurrency } from "@/lib/calc"
 import { AutoSaveForm } from "../auto-form"
-import { updateProposalContent, enableShareLink, disableShareLink } from "../actions"
+import {
+  updateProposalContent,
+  enableShareLink,
+  disableShareLink,
+  voidAcceptance,
+} from "../actions"
 import { SendProposalForm } from "./send-proposal-form"
 import { ShareLinkPanel } from "./share-link"
 import { sendProposalEmail } from "../proposal-actions"
@@ -168,6 +173,45 @@ export default async function ProposalPage({
           </div>
         </div>
       </div>
+
+      {project.acceptedAt && (
+        <div className="bg-green-50 border border-green-200 rounded-lg p-5">
+          <div className="flex items-start gap-3">
+            <span className="text-xl shrink-0" aria-hidden="true">✓</span>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-green-900">
+                Accepted by {project.acceptedBy}
+              </p>
+              <p className="text-xs text-green-800 mt-0.5">
+                {project.acceptedAt.toLocaleString("en-US", {
+                  dateStyle: "long",
+                  timeStyle: "short",
+                })}
+                {project.acceptedIp && (
+                  <span className="text-green-700"> · IP {project.acceptedIp}</span>
+                )}
+              </p>
+            </div>
+            <form action={voidAcceptance.bind(null, project.id)}>
+              <button
+                type="submit"
+                onClick={(e) => {
+                  if (
+                    !confirm(
+                      `Void the acceptance signed by ${project.acceptedBy}? This is meant for typo corrections — keep the original record otherwise.`,
+                    )
+                  ) {
+                    e.preventDefault()
+                  }
+                }}
+                className="text-xs text-green-700 hover:text-danger transition-colors"
+              >
+                Void
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
 
       <ShareLinkPanel
         projectId={project.id}

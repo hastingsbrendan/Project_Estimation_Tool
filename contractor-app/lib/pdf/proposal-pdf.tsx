@@ -165,6 +165,8 @@ export function ProposalPdf({
     paymentSchedule: string | null
     markupPct: number
     taxRate: number
+    acceptedAt: Date | null
+    acceptedBy: string | null
   }
   sections: SectionForPdf[]
   generatedAt: Date
@@ -319,10 +321,25 @@ export function ProposalPdf({
             payment schedule above. Any changes to the scope require a written change
             order signed by both parties.
           </Text>
-          <View style={styles.acceptLine}>
-            <Text style={styles.acceptSig}>Client signature</Text>
-            <Text style={styles.acceptDate}>Date</Text>
-          </View>
+          {project.acceptedAt && project.acceptedBy ? (
+            <View style={styles.acceptLine}>
+              <Text style={{ ...styles.acceptSig, color: "#16a34a", fontWeight: 700 }}>
+                {project.acceptedBy} (signed online)
+              </Text>
+              <Text style={{ ...styles.acceptDate, color: "#16a34a", fontWeight: 700 }}>
+                {project.acceptedAt.toLocaleDateString("en-US", {
+                  year: "numeric",
+                  month: "long",
+                  day: "numeric",
+                })}
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.acceptLine}>
+              <Text style={styles.acceptSig}>Client signature</Text>
+              <Text style={styles.acceptDate}>Date</Text>
+            </View>
+          )}
         </View>
 
         <Text

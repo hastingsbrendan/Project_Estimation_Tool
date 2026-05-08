@@ -58,6 +58,10 @@ export default async function ProjectDetailPage({
         },
         rooms: { orderBy: { order: "asc" } },
         photos: { orderBy: { order: "asc" } },
+        receipts: {
+          orderBy: { purchasedAt: "desc" },
+          include: { items: true },
+        },
       },
     }),
     prisma.catalogItem.findMany({
@@ -310,6 +314,103 @@ export default async function ProjectDetailPage({
           deleteAction={deletePhoto.bind(null, project.id)}
           updateCaptionAction={updatePhotoCaption.bind(null, project.id)}
         />
+      </section>
+
+      {/* Receipts / actuals */}
+      <section>
+        <div className="flex items-baseline justify-between mb-3">
+          <h2 className="text-base font-semibold text-foreground">Receipts &amp; actuals</h2>
+          {project.receipts.length > 0 && (
+            <span className="text-xs text-foreground-soft tabular-nums">
+              {project.receipts.length} receipt{project.receipts.length === 1 ? "" : "s"}
+            </span>
+          )}
+        </div>
+        {project.receipts.length === 0 ? (
+          <p className="text-sm text-foreground-soft italic mb-3">
+            No receipts attached yet.{" "}
+            <Link href="/receipts" className="text-accent hover:underline">
+              Upload from Receipts →
+            </Link>
+          </p>
+        ) : (
+          (() => {
+            const actualsTotal = project.receipts.reduce(
+              (sum, r) => sum + (r.total ?? 0),
+              0,
+            )
+            const variance = actualsTotal - totals.materialSubtotal
+            return (
+              <div className="bg-surface border border-border rounded-lg overflow-hidden">
+                <ul className="divide-y divide-border">
+                  {project.receipts.map((r) => (
+                    <li key={r.id}>
+                      <Link
+                        href={`/receipts/${r.id}`}
+                        className="flex items-center gap-3 px-4 py-2.5 hover:bg-surface-muted transition-colors"
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={r.imageUrl}
+                          alt={r.filename}
+                          className="w-10 h-10 object-cover rounded border border-border shrink-0"
+                          loading="lazy"
+                        />
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm text-foreground truncate">
+                            {r.vendor ?? r.filename}
+                          </p>
+                          <p className="text-xs text-foreground-soft">
+                            {r.purchasedAt
+                              ? r.purchasedAt.toLocaleDateString("en-US", {
+                                  year: "numeric",
+                                  month: "short",
+                                  day: "numeric",
+                                })
+                              : r.createdAt.toLocaleDateString("en-US", {
+                                  year: "numeric",
+                                  month: "short",
+                                  day: "numeric",
+                                })}
+                            {r.items.length > 0 && ` · ${r.items.length} item${r.items.length === 1 ? "" : "s"}`}
+                          </p>
+                        </div>
+                        <p className="text-sm font-medium tabular-nums text-foreground shrink-0">
+                          {r.total != null ? formatCurrency(r.total) : "—"}
+                        </p>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+                <div className="px-4 py-2 bg-surface-muted border-t border-border grid grid-cols-3 gap-3 text-xs">
+                  <div>
+                    <p className="text-foreground-soft">Estimated materials</p>
+                    <p className="font-medium tabular-nums text-foreground">
+                      {formatCurrency(totals.materialSubtotal)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-foreground-soft">Receipts total</p>
+                    <p className="font-medium tabular-nums text-foreground">
+                      {formatCurrency(actualsTotal)}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-foreground-soft">Variance</p>
+                    <p
+                      className={`font-medium tabular-nums ${
+                        variance > 0 ? "text-danger" : variance < 0 ? "text-success" : "text-foreground"
+                      }`}
+                    >
+                      {variance > 0 ? "+" : ""}
+                      {formatCurrency(variance)}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )
+          })()
+        )}
       </section>
 
       {/* Sections */}

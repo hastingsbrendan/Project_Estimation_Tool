@@ -448,3 +448,28 @@ export async function disableShareLink(projectId: string): Promise<void> {
   })
   revalidatePath(`/projects/${projectId}/proposal`)
 }
+
+/**
+ * Void a previously-recorded acceptance (e.g. a typo in the typed name).
+ * Clears acceptance fields and resets project status if it was auto-flipped
+ * to "accepted" — leaves it in "sent" if a proposal was sent, otherwise
+ * "draft".
+ */
+export async function voidAcceptance(projectId: string): Promise<void> {
+  const project = await requireProject(projectId)
+  await prisma.project.update({
+    where: { id: projectId },
+    data: {
+      acceptedAt: null,
+      acceptedBy: null,
+      acceptedIp: null,
+      acceptedUserAgent: null,
+      // If we auto-flipped status to accepted, fall back to sent (or draft).
+      ...(project.status === "accepted"
+        ? { status: project.proposalSentAt ? "sent" : "draft" }
+        : {}),
+    },
+  })
+  revalidatePath(`/projects/${projectId}/proposal`)
+  revalidatePath("/projects")
+}

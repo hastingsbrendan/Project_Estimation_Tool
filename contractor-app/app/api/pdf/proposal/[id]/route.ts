@@ -38,6 +38,8 @@ export async function GET(
         paymentSchedule: project.paymentSchedule,
         markupPct: project.markupPct,
         taxRate: project.taxRate,
+        acceptedAt: project.acceptedAt,
+        acceptedBy: project.acceptedBy,
       },
       sections: project.sections.map((s) => ({
         name: s.name,

@@ -21,6 +21,7 @@ model User {
   sessions     Session[]
   projects     Project[]
   catalogItems CatalogItem[]
+  receipts     Receipt[]
 }
 
 model Account {
@@ -76,6 +77,11 @@ model Project {
   paymentSchedule String? // proposal payment schedule
   proposalSentAt  DateTime? // when the proposal email was last sent
   shareToken      String?   @unique // public read-only proposal link
+  // Public proposal acceptance (recorded when client signs on /proposal/[token])
+  acceptedAt        DateTime?
+  acceptedBy        String? // typed name from the client signature form
+  acceptedIp        String? // client IP at sign time, for audit
+  acceptedUserAgent String? // client UA at sign time, for audit
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
   userId          String
@@ -84,8 +90,59 @@ model Project {
   sections Section[]
   rooms    Room[]
   photos   Photo[]
+  receipts Receipt[]
 
   @@index([userId])
+}
+
+/// Vendor receipts attached to a project. Captures what was actually spent
+/// vs. what was estimated. Each receipt has its own line items (parsed by
+/// Claude vision when a key is configured, otherwise manually entered).
+model Receipt {
+  id            String    @id @default(cuid())
+  userId        String
+  projectId     String? // optional — receipts can sit unassigned until you decide which job they belong to
+  imageUrl      String // Vercel Blob URL of the receipt photo / PDF
+  imagePathname String // for blob delete later
+  filename      String
+  size          Int? // bytes
+  vendor        String? // e.g. "The Home Depot"
+  purchasedAt   DateTime?
+  subtotal      Float?
+  tax           Float?
+  total         Float?
+  parseStatus   String    @default("pending") // pending | parsed | error | manual
+  parseError    String? // surfaced to the user if Claude parsing failed
+  parseRawJson  String? // raw model output for debugging
+  notes         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  user    User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project Project?      @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  items   ReceiptItem[]
+
+  @@index([userId])
+  @@index([projectId])
+}
+
+model ReceiptItem {
+  id                   String  @id @default(cuid())
+  receiptId            String
+  description          String
+  quantity             Float   @default(1)
+  unit                 String  @default("ea")
+  unitPrice            Float   @default(0)
+  lineTotal            Float? // captured separately because retailers often print discounts that don't equal qty*unitPrice
+  sku                  String?
+  matchedCatalogItemId String? // optional — user (or matcher) links this back to a catalog item
+  order                Int     @default(0)
+
+  receipt        Receipt      @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+  matchedCatalog CatalogItem? @relation("MatchedReceiptItems", fields: [matchedCatalogItemId], references: [id], onDelete: SetNull)
+
+  @@index([receiptId])
+  @@index([matchedCatalogItemId])
 }
 
 model Photo {
@@ -167,10 +224,11 @@ model CatalogItem {
   updatedAt   DateTime @updatedAt
   userId      String
 
-  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  lineItems       LineItem[]
-  servicePresets  CatalogPreset[] @relation("ServicePresets")  // when this is a labor item, these are its bundled materials
-  materialPresets CatalogPreset[] @relation("MaterialPresets") // when this is a material, these are presets that include it
+  user                User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lineItems           LineItem[]
+  servicePresets      CatalogPreset[] @relation("ServicePresets")  // when this is a labor item, these are its bundled materials
+  materialPresets     CatalogPreset[] @relation("MaterialPresets") // when this is a material, these are presets that include it
+  matchedReceiptItems ReceiptItem[]   @relation("MatchedReceiptItems")
 
   @@index([userId])
   @@index([trade])

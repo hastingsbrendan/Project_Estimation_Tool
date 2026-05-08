@@ -1,6 +1,8 @@
 import { notFound } from "next/navigation"
 import { prisma } from "@/lib/db"
 import { calcEstimate, formatCurrency, lineItemTotal } from "@/lib/calc"
+import { acceptProposal } from "./actions"
+import { SignForm } from "./sign-form"
 
 export const metadata = {
   robots: { index: false, follow: false }, // don't index public share links
@@ -171,6 +173,35 @@ export default async function PublicProposalPage({
             <p className="text-sm text-foreground whitespace-pre-wrap font-mono">
               {project.paymentSchedule}
             </p>
+          </section>
+        )}
+
+        {/* Acceptance — signed receipt or sign form */}
+        {project.acceptedAt ? (
+          <section className="bg-green-50 border border-green-200 rounded-lg p-5">
+            <div className="flex items-start gap-3">
+              <span className="text-2xl" aria-hidden="true">✓</span>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-green-900">Proposal accepted</p>
+                <p className="text-sm text-green-800 mt-1">
+                  Signed by <strong>{project.acceptedBy}</strong> on{" "}
+                  {project.acceptedAt.toLocaleString("en-US", {
+                    dateStyle: "long",
+                    timeStyle: "short",
+                  })}
+                </p>
+                <p className="text-xs text-green-700 mt-2">
+                  Thanks — keep this page for your records or download the PDF above.
+                </p>
+              </div>
+            </div>
+          </section>
+        ) : (
+          <section className="bg-surface border-2 border-accent rounded-lg p-5">
+            <h2 className="text-sm font-bold uppercase tracking-widest text-foreground mb-3">
+              Sign &amp; accept
+            </h2>
+            <SignForm token={token} action={acceptProposal} />
           </section>
         )}
 
