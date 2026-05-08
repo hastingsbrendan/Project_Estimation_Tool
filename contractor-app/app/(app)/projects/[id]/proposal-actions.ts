@@ -44,6 +44,24 @@ export async function sendProposalEmail(
   }
   const fromAddress = process.env.EMAIL_FROM ?? "onboarding@resend.dev"
 
+  // Make sure a public share token exists so the email's "Review and sign
+  // online" button has somewhere to point. If the contractor never clicked
+  // "Generate share link", spin one up automatically — it's cheap and the
+  // alternative is sending a PDF with no path to signing.
+  let shareToken = project.shareToken
+  if (!shareToken) {
+    shareToken = crypto.randomUUID().replace(/-/g, "")
+    await prisma.project.update({
+      where: { id: project.id },
+      data: { shareToken },
+    })
+  }
+  const origin =
+    process.env.AUTH_URL ??
+    process.env.NEXTAUTH_URL ??
+    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null)
+  const shareUrl = origin ? `${origin}/proposal/${shareToken}` : null
+
   // Render the PDF to a Buffer, then base64 for the Resend attachment payload.
   const pdfBuffer = await renderToBuffer(
     ProposalPdf({
@@ -94,6 +112,10 @@ export async function sendProposalEmail(
 
   const customMessage = String(formData.get("message") ?? "").trim()
   const brandName = "Reliable Remodeling"
+  const ctaButton = shareUrl
+    ? `<p style="margin: 24px 0;"><a href="${shareUrl}" style="display: inline-block; background: #18181b; color: #ffffff; padding: 12px 20px; border-radius: 6px; text-decoration: none; font-weight: 600;">Review and sign online</a></p>
+    <p style="line-height: 1.5; margin: 0 0 8px; font-size: 13px; color: #71717a;">No login required — opens directly in your browser.</p>`
+    : ""
   const html = `<!DOCTYPE html><html><body style="font-family: system-ui, -apple-system, sans-serif; padding: 32px; background: #faf9f6; color: #18181b;">
   <div style="max-width: 560px; margin: 0 auto; background: white; padding: 32px; border-radius: 8px; border: 1px solid #e7e5e0;">
     <p style="margin: 0 0 24px; font-size: 11px; letter-spacing: 2px; color: #18181b; font-weight: 700;">${brandName.toUpperCase()}</p>
@@ -107,12 +129,13 @@ export async function sendProposalEmail(
         : `<p style="line-height: 1.5; margin: 0 0 24px;">Attached is the proposal for <strong>${escapeHtml(project.name)}</strong>. The total comes to <strong>${formatCurrency(totals.total)}</strong>. Let me know if you have any questions or would like to discuss any line items.</p>`
     }
     <p style="line-height: 1.5; margin: 0 0 8px;"><strong>Total:</strong> ${formatCurrency(totals.total)}</p>
-    <p style="line-height: 1.5; margin: 0 0 24px; color: #52525b; font-size: 13px;">Full breakdown is in the attached PDF.</p>
+    <p style="line-height: 1.5; margin: 0 0 24px; color: #52525b; font-size: 13px;">Full breakdown is in the attached PDF${shareUrl ? " or the link below" : ""}.</p>
+    ${ctaButton}
     <p style="color: #71717a; font-size: 12px; margin: 24px 0 0;">Thanks,<br>${brandName}</p>
   </div>
 </body></html>`
 
-  const text = `${customMessage || `Attached is the proposal for ${project.name}. Total: ${formatCurrency(totals.total)}.`}\n\nFull breakdown is in the attached PDF.`
+  const text = `${customMessage || `Attached is the proposal for ${project.name}. Total: ${formatCurrency(totals.total)}.`}\n\nFull breakdown is in the attached PDF.${shareUrl ? `\n\nReview and sign online (no login required):\n${shareUrl}` : ""}`
 
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
