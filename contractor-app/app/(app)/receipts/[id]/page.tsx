@@ -1,5 +1,12 @@
 import Link from "next/link"
 import { notFound } from "next/navigation"
+
+// Claude vision parse can take 10–25s; the default 10s Vercel function
+// timeout was killing the upload before we decoupled it. The auto-parse
+// trigger calls `reparseReceipt` from this page, so the action inherits
+// this duration. 60s is the Hobby-plan ceiling.
+export const maxDuration = 60
+
 import { auth } from "@/auth"
 import { prisma } from "@/lib/db"
 import { formatCurrency } from "@/lib/calc"
@@ -14,6 +21,7 @@ import {
   updateReceiptItem,
 } from "../actions"
 import { ReparseButton } from "./reparse-button"
+import { AutoParseTrigger } from "./auto-parse-trigger"
 
 const STATUS_BADGE: Record<string, string> = {
   pending: "bg-gray-100 text-gray-700",
@@ -54,6 +62,12 @@ export default async function ReceiptDetailPage({
     0,
   )
 
+  const isPdf =
+    receipt.filename.toLowerCase().endsWith(".pdf") ||
+    receipt.imagePathname?.toLowerCase().endsWith(".pdf")
+  const shouldAutoParse =
+    receipt.parseStatus === "pending" && receipt.items.length === 0
+
   return (
     <div className="space-y-6">
       <div>
@@ -77,12 +91,32 @@ export default async function ReceiptDetailPage({
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="md:col-span-1">
           <div className="bg-surface border border-border rounded-lg overflow-hidden">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={receipt.imageUrl}
-              alt={receipt.filename}
-              className="w-full h-auto"
-            />
+            {isPdf ? (
+              <object
+                data={receipt.imageUrl}
+                type="application/pdf"
+                className="w-full h-[420px] bg-surface-muted"
+              >
+                <div className="p-6 text-center text-sm text-foreground-soft">
+                  PDF preview unavailable in this browser.{" "}
+                  <a
+                    href={receipt.imageUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-accent hover:underline"
+                  >
+                    Open the PDF →
+                  </a>
+                </div>
+              </object>
+            ) : (
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <img
+                src={receipt.imageUrl}
+                alt={receipt.filename}
+                className="w-full h-auto"
+              />
+            )}
           </div>
           <div className="mt-3 space-y-1.5">
             <a
@@ -91,13 +125,18 @@ export default async function ReceiptDetailPage({
               rel="noopener noreferrer"
               className="text-xs text-foreground-muted hover:text-foreground block"
             >
-              Open full-size image →
+              {isPdf ? "Open PDF →" : "Open full-size image →"}
             </a>
             <ReparseButton receiptId={receipt.id} action={reparseReceipt} />
           </div>
         </div>
 
         <div className="md:col-span-2 space-y-4">
+          <AutoParseTrigger
+            receiptId={receipt.id}
+            shouldRun={shouldAutoParse}
+            action={reparseReceipt}
+          />
           {receipt.parseError && (
             <div className="bg-red-50 border border-red-200 rounded p-3 text-sm text-red-800">
               <strong>Parse note:</strong> {receipt.parseError}

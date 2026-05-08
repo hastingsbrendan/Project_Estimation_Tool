@@ -40,89 +40,74 @@ function parseFloatSafe(v: FormDataEntryValue | null, fallback = 0): number {
 }
 
 /**
- * Upload a receipt image, store in Vercel Blob, then trigger Claude vision
- * parsing async (server-side). Returns the new receipt id so the caller
- * can navigate to its detail page.
+ * Upload a receipt image / PDF, store in Vercel Blob, create a DB row in
+ * "pending" status, and return the new receipt id immediately. We do NOT
+ * call Claude here — the parse can take 5–25s and would blow Vercel's
+ * 10s function timeout. Parse runs as a separate action triggered by the
+ * detail page on first load.
  */
 export async function uploadReceipt(
   formData: FormData,
 ): Promise<{ ok: boolean; error?: string; receiptId?: string }> {
-  const userId = await requireUserId()
+  try {
+    const userId = await requireUserId()
 
-  const file = formData.get("file")
-  if (!(file instanceof File) || file.size === 0) {
-    return { ok: false, error: "No file selected" }
-  }
-  if (file.size > MAX_BYTES) return { ok: false, error: "File is larger than 12 MB" }
-  if (file.type && !ALLOWED_TYPES.has(file.type)) {
-    return { ok: false, error: `Unsupported file type: ${file.type}` }
-  }
-  if (!process.env.BLOB_READ_WRITE_TOKEN) {
-    return {
-      ok: false,
-      error:
-        "Receipt storage isn't enabled yet. In Vercel → Storage, connect a Blob store to this project.",
+    const file = formData.get("file")
+    if (!(file instanceof File) || file.size === 0) {
+      return { ok: false, error: "No file selected" }
     }
-  }
+    if (file.size > MAX_BYTES) return { ok: false, error: "File is larger than 12 MB" }
+    if (file.type && !ALLOWED_TYPES.has(file.type)) {
+      return { ok: false, error: `Unsupported file type: ${file.type}` }
+    }
+    if (!process.env.BLOB_READ_WRITE_TOKEN) {
+      return {
+        ok: false,
+        error:
+          "Receipt storage isn't enabled yet. In Vercel → Storage, connect a Blob store to this project.",
+      }
+    }
 
-  const projectId = String(formData.get("projectId") ?? "").trim() || null
-  if (projectId) {
-    // Verify ownership of the assigned project before saving the FK.
-    const project = await prisma.project.findFirst({
-      where: { id: projectId, userId },
-    })
-    if (!project) return { ok: false, error: "Project not found" }
-  }
-
-  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_") || "receipt"
-  const pathname = `receipts/${userId}/${Date.now()}-${safeName}`
-  let blob
-  try {
-    blob = await put(pathname, file, { access: "public", addRandomSuffix: false })
-  } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : "Upload failed" }
-  }
-
-  const receipt = await prisma.receipt.create({
-    data: {
-      userId,
-      projectId,
-      imageUrl: blob.url,
-      imagePathname: blob.pathname,
-      filename: file.name,
-      size: file.size,
-      parseStatus: "pending",
-    },
-  })
-
-  // Kick off the Claude parse. We await it so the user sees the parsed data
-  // as soon as they land on the detail page; for files that take >10s this
-  // could run into Vercel's serverless timeout, in which case parseReceipt
-  // can be invoked manually via the "Re-parse" button.
-  try {
-    if (file.type !== "application/pdf") {
-      const buffer = Buffer.from(await file.arrayBuffer())
-      await runParse(receipt.id, buffer, file.type || "image/jpeg")
-    } else {
-      // PDFs need a different content-type for Claude vision, skip for now
-      await prisma.receipt.update({
-        where: { id: receipt.id },
-        data: { parseStatus: "manual", parseError: "PDFs not yet supported — please enter line items manually." },
+    const projectId = String(formData.get("projectId") ?? "").trim() || null
+    if (projectId) {
+      const project = await prisma.project.findFirst({
+        where: { id: projectId, userId },
       })
+      if (!project) return { ok: false, error: "Project not found" }
     }
-  } catch (e) {
-    await prisma.receipt.update({
-      where: { id: receipt.id },
+
+    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_") || "receipt"
+    const pathname = `receipts/${userId}/${Date.now()}-${safeName}`
+    let blob
+    try {
+      blob = await put(pathname, file, { access: "public", addRandomSuffix: false })
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? e.message : "Upload failed" }
+    }
+
+    const receipt = await prisma.receipt.create({
       data: {
-        parseStatus: "error",
-        parseError: e instanceof Error ? e.message : "Parse failed",
+        userId,
+        projectId,
+        imageUrl: blob.url,
+        imagePathname: blob.pathname,
+        filename: file.name,
+        size: file.size,
+        parseStatus: "pending",
       },
     })
-  }
 
-  revalidatePath("/receipts")
-  if (projectId) revalidatePath(`/projects/${projectId}`)
-  return { ok: true, receiptId: receipt.id }
+    revalidatePath("/receipts")
+    if (projectId) revalidatePath(`/projects/${projectId}`)
+    return { ok: true, receiptId: receipt.id }
+  } catch (e) {
+    // Always return an error object — never let the action throw, otherwise
+    // Next.js renders a generic error page instead of our friendly modal.
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : "Upload failed",
+    }
+  }
 }
 
 async function runParse(receiptId: string, imageBuffer: Buffer, mediaType: string): Promise<void> {

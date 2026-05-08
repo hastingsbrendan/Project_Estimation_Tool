@@ -63,14 +63,37 @@ export async function parseReceiptWithClaude(
   if (!apiKey) return { ok: false, error: "ANTHROPIC_API_KEY is not set" }
 
   const supportedImage = ["image/jpeg", "image/png", "image/webp", "image/gif"]
-  if (!supportedImage.includes(mediaType)) {
+  const isPdf = mediaType === "application/pdf"
+  // HEIC/HEIF aren't natively supported by Claude vision; tell the user to
+  // convert. Most phones will let users export as JPEG instead.
+  if (!isPdf && !supportedImage.includes(mediaType)) {
     return {
       ok: false,
-      error: `Unsupported media type for AI parse: ${mediaType}. Convert to JPEG/PNG.`,
+      error: `Unsupported media type for AI parse: ${mediaType}. Convert to JPEG/PNG/PDF.`,
     }
   }
 
   const client = new Anthropic({ apiKey })
+
+  // For PDFs, use a `document` content block (Claude's PDF support); for
+  // images, use the standard `image` block.
+  const sourceBlock = isPdf
+    ? ({
+        type: "document",
+        source: {
+          type: "base64",
+          media_type: "application/pdf",
+          data: imageBuffer.toString("base64"),
+        },
+      } as const)
+    : ({
+        type: "image",
+        source: {
+          type: "base64",
+          media_type: mediaType as "image/jpeg" | "image/png" | "image/webp" | "image/gif",
+          data: imageBuffer.toString("base64"),
+        },
+      } as const)
 
   let response
   try {
@@ -82,14 +105,7 @@ export async function parseReceiptWithClaude(
         {
           role: "user",
           content: [
-            {
-              type: "image",
-              source: {
-                type: "base64",
-                media_type: mediaType as "image/jpeg" | "image/png" | "image/webp" | "image/gif",
-                data: imageBuffer.toString("base64"),
-              },
-            },
+            sourceBlock,
             {
               type: "text",
               text: "Extract this receipt as the JSON object specified.",
