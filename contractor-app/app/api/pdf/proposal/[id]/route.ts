@@ -4,6 +4,9 @@ import { ProposalPdf } from "@/lib/pdf/proposal-pdf"
 import { renderToBuffer } from "@react-pdf/renderer"
 
 export const runtime = "nodejs"
+// React PDF renders a multi-page document; on Vercel a real proposal can
+// take 5–15 s. Default 10 s timeout was killing it cold.
+export const maxDuration = 60
 
 export async function GET(
   _req: Request,

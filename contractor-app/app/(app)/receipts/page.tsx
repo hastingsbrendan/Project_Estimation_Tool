@@ -6,6 +6,11 @@ import { formatCurrency } from "@/lib/calc"
 import { uploadReceipt } from "./actions"
 import { UploadReceiptButton } from "./upload-receipt-button"
 
+// Receipt uploads can take 5-15s on a slow phone connection (Blob put +
+// DB row creation). Server actions inherit maxDuration from the page they
+// run from, so set 60 here.
+export const maxDuration = 60
+
 const STATUS_BADGE: Record<string, string> = {
   pending: "bg-gray-100 text-gray-700",
   parsed: "bg-green-50 text-green-700",

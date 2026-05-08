@@ -5,6 +5,7 @@ import { MaterialsPdf } from "@/lib/pdf/materials-pdf"
 import { renderToBuffer } from "@react-pdf/renderer"
 
 export const runtime = "nodejs"
+export const maxDuration = 60
 
 export async function GET(
   _req: Request,
