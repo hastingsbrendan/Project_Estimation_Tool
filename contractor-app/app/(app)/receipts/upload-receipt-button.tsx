@@ -46,8 +46,8 @@ export function UploadReceiptButton({
               <div>
                 <h2 className="text-base font-semibold text-foreground">Upload receipt</h2>
                 <p className="text-xs text-foreground-soft mt-0.5">
-                  Snap with your phone or pick a saved image. Claude will try to
-                  parse line items automatically.
+                  Pick a photo or PDF. We&rsquo;ll try to parse line items with
+                  Claude on the next page.
                 </p>
               </div>
               <button
@@ -80,19 +80,18 @@ export function UploadReceiptButton({
             >
               <div>
                 <label className="block text-xs font-medium text-foreground-muted mb-1">
-                  Receipt photo
+                  Receipt photo or PDF
                 </label>
                 <input
                   ref={fileRef}
                   name="file"
                   type="file"
-                  accept="image/*"
-                  capture="environment"
+                  accept="image/*,application/pdf,.pdf"
                   required
                   className="block w-full text-sm border border-border rounded px-2 py-1.5 bg-surface focus:outline-none focus:ring-2 focus:ring-accent file:mr-2 file:px-2 file:py-1 file:bg-accent-soft file:border-0 file:rounded file:text-foreground file:text-xs"
                 />
                 <p className="text-[10px] text-foreground-soft mt-1">
-                  JPG/PNG/WebP up to 12 MB. iOS opens the camera.
+                  JPG / PNG / WebP / PDF up to 12 MB.
                 </p>
               </div>
 
@@ -137,7 +136,7 @@ export function UploadReceiptButton({
                   disabled={pending}
                   className="px-4 py-1.5 bg-accent text-white rounded text-sm font-medium hover:bg-accent-hover disabled:opacity-50"
                 >
-                  {pending ? "Uploading & parsing…" : "Upload"}
+                  {pending ? "Uploading…" : "Upload"}
                 </button>
               </div>
             </form>
