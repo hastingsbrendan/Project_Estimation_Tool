@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { usePathname } from "next/navigation"
 
 /**
@@ -20,27 +20,41 @@ export default function AppError({
   const [reported, setReported] = useState<"idle" | "sending" | "ok" | "err">(
     "idle",
   )
+  const autoReportFired = useRef(false)
 
   useEffect(() => {
     // eslint-disable-next-line no-console
     console.error("[(app)/error.tsx]", error)
   }, [error])
 
+  // Auto-report on mount so we always have a log line + webhook ping for
+  // every prod error, no manual click required. The button below still
+  // works for re-sending if the auto-report hits a network failure.
+  useEffect(() => {
+    if (autoReportFired.current) return
+    autoReportFired.current = true
+    void reportThis(true)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const digest = error.digest ?? null
   const shortMsg = (error.message || "Unexpected error").split("\n")[0].slice(0, 200)
 
-  async function reportThis() {
+  async function reportThis(auto = false) {
     setReported("sending")
     try {
       const fd = new FormData()
       fd.set("path", pathname)
+      fd.set("auto", auto ? "1" : "0")
+      fd.set("digest", digest ?? "")
       fd.set(
         "message",
         [
-          "[auto] Error boundary triggered",
+          auto ? "[auto] Error boundary triggered" : "[manual] Error boundary report",
           `Page: ${pathname}`,
           `Digest: ${digest ?? "(none)"}`,
           `Message: ${shortMsg}`,
+          `User-agent: ${typeof navigator !== "undefined" ? navigator.userAgent : "?"}`,
           `Time: ${new Date().toISOString()}`,
         ].join("\n"),
       )
@@ -113,7 +127,7 @@ export default function AppError({
           </a>
           <button
             type="button"
-            onClick={reportThis}
+            onClick={() => reportThis(false)}
             disabled={reported === "sending" || reported === "ok"}
             className="px-4 py-2 bg-surface border border-border text-foreground-muted rounded-md text-sm font-medium hover:bg-surface-muted disabled:opacity-50"
           >

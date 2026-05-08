@@ -1,12 +1,5 @@
 import Link from "next/link"
 import { notFound } from "next/navigation"
-
-// Claude vision parse can take 10–25s; the default 10s Vercel function
-// timeout was killing the upload before we decoupled it. The auto-parse
-// trigger calls `reparseReceipt` from this page, so the action inherits
-// this duration. 60s is the Hobby-plan ceiling.
-export const maxDuration = 60
-
 import { auth } from "@/auth"
 import { prisma } from "@/lib/db"
 import { formatCurrency } from "@/lib/calc"
@@ -22,6 +15,13 @@ import {
 } from "../actions"
 import { ReparseButton } from "./reparse-button"
 import { AutoParseTrigger } from "./auto-parse-trigger"
+import { logError } from "@/lib/log"
+
+// Claude vision parse can take 10–25s; the default 10s Vercel function
+// timeout was killing the upload before we decoupled it. The auto-parse
+// trigger calls `reparseReceipt` from this page, so the action inherits
+// this duration. 60s is the Hobby-plan ceiling.
+export const maxDuration = 60
 
 const STATUS_BADGE: Record<string, string> = {
   pending: "bg-gray-100 text-gray-700",
@@ -30,16 +30,11 @@ const STATUS_BADGE: Record<string, string> = {
   error: "bg-red-50 text-red-700",
 }
 
-export default async function ReceiptDetailPage({
-  params,
-}: {
-  params: Promise<{ id: string }>
-}) {
-  const { id } = await params
+async function loadReceiptDetail(id: string) {
   const session = await auth()
-  if (!session?.user?.email) notFound()
+  if (!session?.user?.email) return { found: false } as const
   const user = await prisma.user.findUnique({ where: { email: session.user.email } })
-  if (!user) notFound()
+  if (!user) return { found: false } as const
 
   const [receipt, projects] = await Promise.all([
     prisma.receipt.findFirst({
@@ -55,7 +50,29 @@ export default async function ReceiptDetailPage({
       select: { id: true, name: true },
     }),
   ])
-  if (!receipt) notFound()
+  if (!receipt) return { found: false } as const
+  return { found: true as const, receipt, projects }
+}
+
+export default async function ReceiptDetailPage({
+  params,
+}: {
+  params: Promise<{ id: string }>
+}) {
+  const { id } = await params
+  let detail: Awaited<ReturnType<typeof loadReceiptDetail>>
+  try {
+    detail = await loadReceiptDetail(id)
+  } catch (e) {
+    // Re-throw so error.tsx renders, but make sure the actual error is in
+    // the Vercel logs first — Next's production wrapper hides the inner
+    // message from the client and from the digest hash, which is why every
+    // server-component error looks identical (digest 3062837146).
+    logError("/receipts/[id]", e, { receiptId: id })
+    throw e
+  }
+  if (!detail.found) notFound()
+  const { receipt, projects } = detail
 
   const itemsTotal = receipt.items.reduce(
     (sum, i) => sum + (i.lineTotal != null ? i.lineTotal : i.quantity * i.unitPrice),

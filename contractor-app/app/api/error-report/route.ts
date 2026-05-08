@@ -11,6 +11,15 @@ export const runtime = "nodejs"
  *
  * Auth-light: any signed-in user can report on themselves. We don't accept
  * arbitrary anonymous reports — those would just spam the webhook.
+ *
+ * Important: this is the only path by which a server-component render
+ * error becomes findable in Vercel logs. Next.js wraps server-component
+ * errors in production with a generic outer message ("An error occurred
+ * in the Server Components render…"), and the digest is computed from
+ * that wrapper — so 100% of server-component crashes look identical via
+ * digest alone. The auto-report fires from the error boundary on mount
+ * with the path and digest so we can correlate to the timestamp in the
+ * function logs.
  */
 export async function POST(req: Request) {
   const session = await auth()
@@ -21,21 +30,35 @@ export async function POST(req: Request) {
 
   let path = "/"
   let message = ""
+  let digest = ""
+  let auto = false
   try {
     const fd = await req.formData()
     path = String(fd.get("path") ?? "/")
     message = String(fd.get("message") ?? "").slice(0, 4000)
+    digest = String(fd.get("digest") ?? "")
+    auto = String(fd.get("auto") ?? "") === "1"
   } catch (e) {
     logError("/api/error-report", e, { userEmail })
     return Response.json({ ok: false, error: "Bad payload" }, { status: 400 })
   }
 
-  // Always log it server-side first — that way even if the webhook is
-  // misconfigured we still have the report in Vercel logs.
-  logInfo("error-report", `Auto-reported error from ${userEmail}`, {
+  // Emit as an ERROR-level log line (not info) so it's findable in Vercel's
+  // log-level filter. The error message we re-throw is purely synthetic —
+  // it carries the digest + path + user so a future `vercel logs --filter
+  // "error-boundary"` finds the entry instantly.
+  logError(
+    "error-boundary",
+    new Error(
+      `client_error_boundary: ${path} digest=${digest || "(none)"} ${auto ? "auto" : "manual"}`,
+    ),
+    { userEmail, path, digest, auto, message },
+  )
+  logInfo("error-report", `Reported error from ${userEmail}`, {
     userEmail,
     path,
-    message,
+    digest,
+    auto,
   })
 
   const webhook = process.env.FEEDBACK_WEBHOOK_URL
