@@ -97,7 +97,9 @@ export function CartBuilderButton({ projectId }: { projectId: string }) {
     <div className="inline-flex items-center gap-2 text-xs">
       <span className="text-foreground-soft">Cart builder:</span>
       <a
-        href="/extension-setup"
+        href="https://github.com/hastingsbrendan/Project-Estimation-Tool/blob/main/extension/README.md"
+        target="_blank"
+        rel="noopener noreferrer"
         className="text-accent hover:underline"
         title="Install the Chrome extension to build a HD cart from this material list"
       >
