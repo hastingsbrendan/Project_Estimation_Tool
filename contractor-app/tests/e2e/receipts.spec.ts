@@ -22,7 +22,11 @@ test.describe("receipts", () => {
     page,
   }) => {
     await page.goto("/receipts")
-    await page.getByRole("button", { name: /Upload receipt/i }).click()
+    // The list page renders two Upload buttons (header CTA + empty-state CTA).
+    // The button label includes a "+" prefix; Playwright's accessible-name
+    // match is whitespace-fuzzy but the "+" character can throw it off.
+    // Use text-match with .first() to grab whichever variant is visible.
+    await page.locator('button:has-text("Upload receipt")').first().click()
 
     // Modal should open
     await expect(page.getByText(/Receipt photo or PDF/i)).toBeVisible()

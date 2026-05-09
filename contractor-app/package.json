@@ -10,7 +10,8 @@
     "lint": "eslint",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "playwright test",
+    "test:e2e": "npm run test:e2e:build && playwright test",
+    "test:e2e:build": "cross-env DATABASE_URL=file:./test.db AUTH_SECRET=test-secret-not-for-production-use-32-chars AUTH_URL=http://localhost:3100 NEXTAUTH_URL=http://localhost:3100 AUTH_TRUST_HOST=true next build",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:debug": "playwright test --debug",
     "test:all": "npm test && npm run test:e2e"
@@ -40,6 +41,7 @@
     "@types/nodemailer": "^8.0.0",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "cross-env": "^10.1.0",
     "dotenv": "^17.4.2",
     "eslint": "^9",
     "eslint-config-next": "16.2.5",
