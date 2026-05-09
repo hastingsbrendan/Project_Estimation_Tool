@@ -4,63 +4,89 @@ import { useEffect, useState } from "react"
 
 /**
  * Renders one of three states:
- *   - Extension installed → green "Build cart at Home Depot" button that
+ *   - Extension installed → orange "Build cart at Home Depot" button that
  *     dispatches a window.postMessage. The extension's bridge content
  *     script listens and forwards to its service worker.
- *   - Extension not detected → grey "Install the extension first" link.
- *   - Loading (initial mount, before the bridge has had a chance to inject) →
- *     a tiny spinner so we don't flicker between states.
+ *   - Extension not detected → grey "Install Chrome extension →" link.
+ *   - Loading (initial mount, before the bridge has had a chance to
+ *     announce) → a tiny spinner so we don't flicker between states.
  *
- * The bridge content script (`extension/src/content/contractor-app-bridge.ts`)
- * sets `window.__contractorAppExt = { version, ext: <chrome runtime id> }`
- * at document_idle. We poll for ~1 second after mount before deciding the
- * extension isn't there.
+ * Detection is via window.postMessage handshake — NOT a window.* flag.
+ * Vercel's CSP blocks the inline <script> we'd need to set window.* from
+ * the extension's isolated content script. postMessage works under any
+ * CSP because nothing is being injected into the page's main world.
+ *
+ * Protocol:
+ *   - On mount: button posts `{source: "contractor-app", type: "ping"}`
+ *   - Bridge listens, replies via
+ *     `{source: "contractor-app-ext", type: "ready", version, ext}`
+ *   - Button also listens for the `ready` message in case the bridge
+ *     announced before the listener was attached.
+ *
+ * If no `ready` arrives within DEADLINE_MS, we conclude the extension
+ * isn't installed and show the install link.
  */
-type ExtensionFlag = { version: string; ext: string }
+type ExtensionInfo = { version: string; ext: string }
 
-declare global {
-  interface Window {
-    __contractorAppExt?: ExtensionFlag
-  }
+const DEADLINE_MS = 1500
+
+type ExtMessage = {
+  source: "contractor-app-ext"
+  type: string
+  version?: string
+  ext?: string
+  [k: string]: unknown
 }
-
-const POLL_INTERVAL_MS = 100
-const POLL_DEADLINE_MS = 1000
 
 export function CartBuilderButton({ projectId }: { projectId: string }) {
   const [state, setState] = useState<"loading" | "ready" | "missing">("loading")
-  const [extInfo, setExtInfo] = useState<ExtensionFlag | null>(null)
+  const [extInfo, setExtInfo] = useState<ExtensionInfo | null>(null)
 
   useEffect(() => {
     if (typeof window === "undefined") return
-    // Fast path: if the bridge already ran (document was idle before mount).
-    if (window.__contractorAppExt) {
-      setExtInfo(window.__contractorAppExt)
+
+    let resolved = false
+    let deadline: ReturnType<typeof setTimeout> | null = null
+
+    function onMessage(e: MessageEvent) {
+      if (e.source !== window) return
+      const data = e.data as ExtMessage | undefined
+      if (!data || typeof data !== "object") return
+      if (data.source !== "contractor-app-ext") return
+      if (data.type !== "ready") return
+      if (resolved) return
+      resolved = true
+      setExtInfo({
+        version: String(data.version ?? "?"),
+        ext: String(data.ext ?? ""),
+      })
       setState("ready")
-      return
+      window.removeEventListener("message", onMessage)
+      if (deadline) clearTimeout(deadline)
     }
-    // Otherwise poll for up to POLL_DEADLINE_MS.
-    let elapsed = 0
-    const interval = setInterval(() => {
-      if (window.__contractorAppExt) {
-        setExtInfo(window.__contractorAppExt)
-        setState("ready")
-        clearInterval(interval)
-        return
-      }
-      elapsed += POLL_INTERVAL_MS
-      if (elapsed >= POLL_DEADLINE_MS) {
-        setState("missing")
-        clearInterval(interval)
-      }
-    }, POLL_INTERVAL_MS)
-    return () => clearInterval(interval)
+    window.addEventListener("message", onMessage)
+
+    // Ping the bridge in case it already announced before we mounted.
+    window.postMessage(
+      { source: "contractor-app", type: "ping" },
+      window.location.origin,
+    )
+
+    deadline = setTimeout(() => {
+      if (resolved) return
+      resolved = true
+      setState("missing")
+      window.removeEventListener("message", onMessage)
+    }, DEADLINE_MS)
+
+    return () => {
+      window.removeEventListener("message", onMessage)
+      if (deadline) clearTimeout(deadline)
+    }
   }, [])
 
   function startBuild() {
     if (state !== "ready") return
-    // The bridge script listens on window.postMessage with this exact type
-    // and forwards { projectId } to the extension's background worker.
     window.postMessage(
       {
         source: "contractor-app",
