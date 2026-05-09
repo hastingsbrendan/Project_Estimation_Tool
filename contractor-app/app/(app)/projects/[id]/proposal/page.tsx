@@ -253,6 +253,7 @@ export default async function ProposalPage({
       <SendProposalForm
         defaultEmail={project.clientEmail}
         clientName={project.clientName}
+        contractorEmail={session?.user?.email ?? null}
         action={sendProposalEmail.bind(null, project.id)}
       />
     </div>

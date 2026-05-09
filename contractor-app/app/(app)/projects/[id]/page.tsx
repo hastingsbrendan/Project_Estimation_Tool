@@ -22,6 +22,8 @@ import { addRoom, updateRoom, deleteRoom } from "./room-actions"
 import { uploadPhoto, deletePhoto, updatePhotoCaption } from "./photo-actions"
 import { AutoSaveForm } from "./auto-form"
 import { AddLineItemForm } from "./catalog-picker"
+import { CatalogEmptyBanner } from "./catalog-empty-banner"
+import { loadDefaultCatalog } from "../../catalog/actions"
 import { ServicesPicker } from "./services-picker"
 import { RefreshPricesButton } from "./refresh-prices-button"
 import { PhotoGallery } from "./photo-gallery"
@@ -103,6 +105,8 @@ export default async function ProjectDetailPage({
   const currentStatus = STATUSES.find((s) => s.value === project.status) ?? STATUSES[0]
   const sectionIds = project.sections.map((s) => s.id)
 
+  const catalogIsEmpty = catalog.length === 0
+
   return (
     <div className="space-y-6 pb-32">
       {/* Back link + page actions */}
@@ -125,6 +129,8 @@ export default async function ProjectDetailPage({
           </Link>
         </div>
       </div>
+
+      {catalogIsEmpty && <CatalogEmptyBanner loadAction={loadDefaultCatalog} />}
 
       {/* Project meta */}
       <div className="bg-surface border border-border rounded-lg p-6">
@@ -783,8 +789,8 @@ function LineItemRow({
               className="w-full bg-transparent border-b border-transparent hover:border-border focus:border-accent focus:outline-none px-1 py-0.5 -mx-1 text-foreground"
               title="Service rolls up to Services sub-table; Material rolls up to Materials sub-table"
             >
-              <option value="material">M</option>
-              <option value="labor">S</option>
+              <option value="material">Material</option>
+              <option value="labor">Service</option>
             </select>
           </div>
           <div className="col-span-2 sm:col-span-2 text-right text-foreground tabular-nums font-medium">

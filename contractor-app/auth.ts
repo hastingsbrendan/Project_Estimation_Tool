@@ -2,6 +2,7 @@ import NextAuth from "next-auth"
 import { PrismaAdapter } from "@auth/prisma-adapter"
 import Nodemailer from "next-auth/providers/nodemailer"
 import { prisma } from "@/lib/db"
+import { seedDefaultCatalogForUser } from "@/lib/seed-default-catalog"
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   adapter: PrismaAdapter(prisma),
@@ -51,5 +52,18 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   },
   session: {
     strategy: "database",
+  },
+  events: {
+    /**
+     * Fired once per new account creation. Seed the starter catalog so
+     * the contractor's first project picker isn't empty — single biggest
+     * first-impression friction otherwise. Errors inside the seed are
+     * logged but never bubble — sign-in must succeed even if seeding fails.
+     */
+    createUser: async ({ user }) => {
+      if (user.id) {
+        await seedDefaultCatalogForUser(user.id)
+      }
+    },
   },
 })

@@ -32,7 +32,7 @@ export async function sendProposalEmail(
   projectId: string,
   formData: FormData,
 ): Promise<{ ok: boolean; error?: string }> {
-  const { project } = await requireProject(projectId)
+  const { project, userId } = await requireProject(projectId)
 
   const overrideEmail = String(formData.get("toEmail") ?? "").trim()
   const recipient = overrideEmail || project.clientEmail
@@ -46,6 +46,21 @@ export async function sendProposalEmail(
     }
   }
   const fromAddress = process.env.EMAIL_FROM ?? "onboarding@resend.dev"
+
+  // CC the contractor on real sends so they always have a copy. Skipped
+  // on test-sends (form sets cc=0) because the test goes to the contractor
+  // anyway — CCing themselves on top would just duplicate.
+  const wantsCc = String(formData.get("cc") ?? "0") === "1"
+  let ccAddress: string | null = null
+  if (wantsCc) {
+    const contractor = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { email: true },
+    })
+    if (contractor?.email && contractor.email.toLowerCase() !== recipient.toLowerCase()) {
+      ccAddress = contractor.email
+    }
+  }
 
   // Make sure a public share token exists so the email's "Review and sign
   // online" button has somewhere to point. If the contractor never clicked
@@ -149,6 +164,7 @@ export async function sendProposalEmail(
     body: JSON.stringify({
       from: fromAddress,
       to: [recipient],
+      ...(ccAddress ? { cc: [ccAddress] } : {}),
       subject: `Proposal — ${project.name}`,
       html,
       text,
@@ -175,6 +191,7 @@ export async function sendProposalEmail(
   logInfo("sendProposalEmail", "Sent proposal email", {
     projectId,
     recipient,
+    cc: ccAddress,
     pdfBytes: pdfBuffer.byteLength,
     hasShareLink: !!shareUrl,
   })

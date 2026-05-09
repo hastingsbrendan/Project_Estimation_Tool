@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db"
 import { revalidatePath } from "next/cache"
 import { CATALOG_SEED } from "@/seeds/catalog"
 import { requireUserId } from "@/lib/auth-helpers"
+import { seedDefaultCatalogForUser } from "@/lib/seed-default-catalog"
 
 const ALLOWED_TRADES = [
   "demo",
@@ -85,36 +86,17 @@ export async function deleteCatalogItem(itemId: string): Promise<void> {
  * Bulk-load the static default catalog (300 items) for this user.
  * Skips items the user already has at exact (description, trade) match,
  * so re-running the action is safe and additive.
+ *
+ * The same seeding logic runs automatically on first sign-in via Auth.js
+ * `events.createUser` (see auth.ts). This action exists for the manual
+ * "Update dummy catalog" banner / button.
  */
 export async function loadDefaultCatalog(): Promise<void> {
   const userId = await requireUserId()
-
-  const existing = await prisma.catalogItem.findMany({
-    where: { userId },
-    select: { description: true, trade: true },
-  })
-  const have = new Set(existing.map((i) => `${i.trade}::${i.description}`))
-
-  const toInsert = CATALOG_SEED.filter(
-    (s) => !have.has(`${s.trade}::${s.description}`),
-  )
-
-  if (toInsert.length === 0) {
-    revalidatePath("/catalog")
-    return
-  }
-
-  await prisma.catalogItem.createMany({
-    data: toInsert.map((s) => ({
-      userId,
-      trade: s.trade,
-      description: s.description,
-      unit: s.unit,
-      unitPrice: s.unitPrice,
-      kind: s.kind,
-    })),
-  })
+  await seedDefaultCatalogForUser(userId)
   revalidatePath("/catalog")
+  revalidatePath("/catalog/services")
+  revalidatePath("/catalog/materials")
 }
 
 /**

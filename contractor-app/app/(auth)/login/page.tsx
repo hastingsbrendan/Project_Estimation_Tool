@@ -2,7 +2,9 @@
 
 import { signIn } from "next-auth/react"
 import { useSearchParams } from "next/navigation"
-import { useState, Suspense } from "react"
+import { useEffect, useRef, useState, Suspense } from "react"
+
+const RESEND_COOLDOWN_SECONDS = 30
 
 function LoginForm() {
   const params = useSearchParams()
@@ -10,18 +12,34 @@ function LoginForm() {
   const [pending, setPending] = useState(false)
   const [sent, setSent] = useState(false)
   const [error, setError] = useState("")
+  const [cooldown, setCooldown] = useState(0)
+  const cooldownTimer = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const checkEmail = params.get("check-email")
   const hasError = params.get("error")
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    if (!email) return
+  // Tick down the resend cooldown once per second.
+  useEffect(() => {
+    if (cooldown <= 0) {
+      if (cooldownTimer.current) clearInterval(cooldownTimer.current)
+      cooldownTimer.current = null
+      return
+    }
+    cooldownTimer.current = setInterval(() => {
+      setCooldown((c) => Math.max(0, c - 1))
+    }, 1000)
+    return () => {
+      if (cooldownTimer.current) clearInterval(cooldownTimer.current)
+    }
+  }, [cooldown])
+
+  async function send(targetEmail: string) {
+    if (!targetEmail) return
     setPending(true)
     setError("")
     try {
       const result = await signIn("nodemailer", {
-        email,
+        email: targetEmail,
         redirect: false,
         callbackUrl: params.get("callbackUrl") ?? "/projects",
       })
@@ -29,6 +47,7 @@ function LoginForm() {
         setError("Something went wrong. Please try again.")
       } else {
         setSent(true)
+        setCooldown(RESEND_COOLDOWN_SECONDS)
       }
     } catch {
       setError("Something went wrong. Please try again.")
@@ -37,24 +56,58 @@ function LoginForm() {
     }
   }
 
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    await send(email)
+  }
+
   if (sent || checkEmail) {
+    const showEmail = email || "your email"
     return (
       <div className="text-center">
         <div className="mb-4 text-4xl">📬</div>
         <h2 className="text-xl font-semibold text-gray-900 mb-2">Check your inbox</h2>
         <p className="text-gray-600">
-          We sent a magic link to <strong>{email || "your email"}</strong>. Click it to sign in.
+          We sent a magic link to <strong className="break-all">{showEmail}</strong>.
+          Click the button in the email to sign in.
         </p>
-        <p className="mt-4 text-sm text-gray-400">
-          Didn&apos;t get it? Check spam or{" "}
+        <p className="mt-3 text-sm text-gray-500">
+          The link works once and expires in 24 hours.{" "}
+          <strong>Check your spam folder</strong> if you don&apos;t see it within a
+          minute.
+        </p>
+
+        <div className="mt-6 flex flex-col items-center gap-2">
           <button
-            onClick={() => { setSent(false) }}
-            className="text-blue-600 hover:underline"
+            type="button"
+            onClick={() => email && send(email)}
+            disabled={pending || cooldown > 0 || !email}
+            className="text-sm text-accent hover:underline disabled:opacity-50 disabled:no-underline disabled:cursor-not-allowed"
           >
-            try again
+            {pending
+              ? "Resending…"
+              : cooldown > 0
+                ? `Resend in ${cooldown}s`
+                : "Resend the link"}
           </button>
-          .
-        </p>
+          <button
+            type="button"
+            onClick={() => {
+              setSent(false)
+              setError("")
+              setCooldown(0)
+            }}
+            className="text-xs text-gray-500 hover:text-gray-700 hover:underline"
+          >
+            Wrong email? Try a different address →
+          </button>
+        </div>
+
+        {error && (
+          <p className="mt-4 text-xs text-red-600" aria-live="polite">
+            {error}
+          </p>
+        )}
       </div>
     )
   }
