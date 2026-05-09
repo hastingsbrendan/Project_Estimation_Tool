@@ -16,6 +16,15 @@ Full runbook: `MIGRATIONS.md`. Always remind the user to apply the SQL before pu
 
 Triage runbook: `TRIAGE.md`. Health endpoint: `/api/health`.
 
+# Subcontractor PII is encrypted; key lives in env
+
+`SUBCONTRACTOR_PII_KEY` (32 bytes base64) is required for the `/subs/[id]` tax-id field and the `/subs/1099` page. Without it: tax-id editing is disabled with a friendly notice, and 1099 generation returns 503 with a clear "set the key" message. `lib/crypto/secret-box.ts` is the only file that touches the key — it never leaves the encrypt/decrypt boundary. See `lib/pdf/form-1099-nec.tsx` for the 1099 layout (substitute form, Copies B/C/2 — Copy A files separately through IRS FIRE / Track1099).
+
+Generate a key:
+```
+node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+```
+
 # Tests are how we close the feedback loop
 
 Two layers, both fast:

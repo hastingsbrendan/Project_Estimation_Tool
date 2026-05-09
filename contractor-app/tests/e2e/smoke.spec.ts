@@ -37,6 +37,8 @@ test.describe("smoke: authed pages", () => {
     { name: "receipt detail", path: () => `/receipts/${fixtures().smoke.receiptId}` },
     { name: "services catalog", path: () => "/catalog/services" },
     { name: "materials catalog", path: () => "/catalog/materials" },
+    { name: "subs list (empty)", path: () => "/subs" },
+    { name: "subs 1099 page", path: () => "/subs/1099" },
   ]
 
   for (const p of pages) {

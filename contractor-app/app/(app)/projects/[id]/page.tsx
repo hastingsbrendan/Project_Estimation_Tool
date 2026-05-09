@@ -24,6 +24,15 @@ import { AutoSaveForm } from "./auto-form"
 import { AddLineItemForm } from "./catalog-picker"
 import { CatalogEmptyBanner } from "./catalog-empty-banner"
 import { loadDefaultCatalog } from "../../catalog/actions"
+import { ProjectSubsSection } from "./project-subs-section"
+import {
+  addSubToProject,
+  quickCreateSubAndAssign,
+  updateProjectSubcontractor,
+  removeProjectSubcontractor,
+  rateSubOnProject,
+} from "./sub-actions"
+import { addPayment as logSubPayment } from "../../subs/payment-actions"
 import { ServicesPicker } from "./services-picker"
 import { RefreshPricesButton } from "./refresh-prices-button"
 import { PhotoGallery } from "./photo-gallery"
@@ -63,6 +72,20 @@ export default async function ProjectDetailPage({
         receipts: {
           orderBy: { purchasedAt: "desc" },
           include: { items: true },
+        },
+        subcontractors: {
+          orderBy: { createdAt: "desc" },
+          include: {
+            subcontractor: {
+              select: { id: true, name: true, contactName: true },
+            },
+          },
+        },
+        subcontractorPayments: {
+          select: { amount: true, projectId: true, subcontractorId: true },
+        },
+        subcontractorRatings: {
+          select: { subcontractorId: true },
         },
       },
     }),
@@ -106,6 +129,41 @@ export default async function ProjectDetailPage({
   const sectionIds = project.sections.map((s) => s.id)
 
   const catalogIsEmpty = catalog.length === 0
+
+  // Subcontractors data
+  const subAssignments = project.subcontractors.map((a) => {
+    const paidToDate = project.subcontractorPayments
+      .filter(
+        (p) =>
+          p.subcontractorId === a.subcontractorId && p.projectId === project.id,
+      )
+      .reduce((sum, p) => sum + p.amount, 0)
+    const rated = project.subcontractorRatings.some(
+      (r) => r.subcontractorId === a.subcontractorId,
+    )
+    return {
+      id: a.id,
+      scope: a.scope,
+      agreedAmount: a.agreedAmount,
+      hourlyRate: a.hourlyRate,
+      status: a.status,
+      notes: a.notes,
+      startDate: a.startDate,
+      endDate: a.endDate,
+      paidToDate,
+      rated,
+      subcontractor: a.subcontractor,
+    }
+  })
+
+  const availableSubs = await prisma.subcontractor.findMany({
+    where: { userId: user.id, archived: false },
+    orderBy: { name: "asc" },
+    select: { id: true, name: true, contactName: true },
+  })
+
+  // Rating prompt is on once the project clearly wraps up.
+  const canRate = ["accepted", "won", "done"].includes(project.status)
 
   return (
     <div className="space-y-6 pb-32">
@@ -319,6 +377,22 @@ export default async function ProjectDetailPage({
           uploadAction={uploadPhoto.bind(null, project.id)}
           deleteAction={deletePhoto.bind(null, project.id)}
           updateCaptionAction={updatePhotoCaption.bind(null, project.id)}
+        />
+      </section>
+
+      {/* Subcontractors on this project */}
+      <section>
+        <ProjectSubsSection
+          projectId={project.id}
+          assignments={subAssignments}
+          availableSubs={availableSubs}
+          canRate={canRate}
+          addAction={addSubToProject.bind(null, project.id)}
+          quickCreateAction={quickCreateSubAndAssign.bind(null, project.id)}
+          updateAction={updateProjectSubcontractor.bind(null, project.id)}
+          removeAction={removeProjectSubcontractor.bind(null, project.id)}
+          rateAction={rateSubOnProject.bind(null, project.id)}
+          logPaymentAction={logSubPayment}
         />
       </section>
 
