@@ -53,7 +53,21 @@ Rules:
 - Skip non-product lines: subtotals, tax lines, payment / tender, store hours, return policy, barcodes printed as text, customer copy footers.
 - If a description is wrapped across multiple lines, join them with a space.
 - If you can't read the receipt at all, return all nulls and an empty items array.
-- DO NOT invent values not visible in the receipt.`
+- DO NOT invent values not visible in the receipt.
+
+SKU extraction — this matters; downstream code uses SKUs to navigate
+straight to product pages on the retailer's website:
+- Home Depot receipts: each line's SKU is a 6–12 digit number printed
+  on the same row as the description, often labeled "SKU" or just
+  bare. Sometimes printed as "<NNN> <NNN-NNN>" — return the digits
+  joined together with no spaces or dashes.
+- Lowe's receipts: SKUs are 7-digit "Item #" numbers.
+- If the receipt printed a barcode-style number (12+ digits) under
+  the description, that's a UPC, NOT an SKU — leave sku as null and
+  do NOT confuse a UPC with the retailer's SKU.
+- If the SKU is partially obscured, faded, or you're not confident,
+  return null for that line's sku rather than guessing. A missing SKU
+  is recoverable; a wrong SKU sends the user to the wrong product.`
 
 export async function parseReceiptWithClaude(
   imageBuffer: Buffer,

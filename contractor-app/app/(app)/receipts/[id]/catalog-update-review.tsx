@@ -23,6 +23,15 @@ type LikelyState = {
   newPrice: number // editable
   deltaPct: number
   apply: boolean // default OFF — explicit opt-in per the plan
+  receiptSku: string | null // from receipt parse
+  catalogSku: string | null // already on the catalog row
+  /**
+   * Whether to write receiptSku onto the catalog row when applying.
+   * Default ON when catalog has no SKU and receipt does; OFF when
+   * the SKUs conflict (we surface the conflict and let the user
+   * pick explicitly to overwrite).
+   */
+  applySku: boolean
 }
 
 type UncertainState = {
@@ -38,6 +47,7 @@ type UncertainState = {
   // For the "new" path:
   newPrice: number
   newTrade: string
+  receiptSku: string | null
 }
 
 type NewState = {
@@ -48,6 +58,8 @@ type NewState = {
   trade: string // editable
   price: number // editable
   apply: boolean // default ON — contractor opted in by uploading a catalog receipt
+  /** SKU parsed off the receipt; editable so user can fix or fill in. */
+  hdSku: string
 }
 
 type RowState = LikelyState | UncertainState | NewState
@@ -73,6 +85,11 @@ export function CatalogUpdateReview({
   const initial = useMemo<RowState[]>(() => {
     const rows: RowState[] = []
     for (const m of preview.matches) {
+      // Default applySku ON when the catalog has no SKU yet OR they
+      // already match; OFF when they conflict (forces a deliberate
+      // overwrite via the conflict UI below).
+      const skuConflict =
+        !!m.catalogSku && !!m.receiptSku && m.catalogSku !== m.receiptSku
       rows.push({
         type: "likely",
         receiptItemId: m.receiptItemId,
@@ -83,6 +100,9 @@ export function CatalogUpdateReview({
         newPrice: m.newPrice,
         deltaPct: m.deltaPct,
         apply: false,
+        receiptSku: m.receiptSku,
+        catalogSku: m.catalogSku,
+        applySku: !!m.receiptSku && !skuConflict && !m.catalogSku,
       })
     }
     for (const u of preview.uncertain) {
@@ -97,6 +117,7 @@ export function CatalogUpdateReview({
         pickedCatalogItemId: u.candidates[0]?.catalogItemId ?? null,
         newPrice: u.parsedPrice,
         newTrade: "finish",
+        receiptSku: u.receiptSku,
       })
     }
     for (const n of preview.newItems) {
@@ -108,6 +129,7 @@ export function CatalogUpdateReview({
         trade: n.suggestedTrade,
         price: n.suggestedPrice,
         apply: true,
+        hdSku: n.receiptSku ?? "",
       })
     }
     return rows
@@ -152,6 +174,7 @@ export function CatalogUpdateReview({
             receiptItemId: r.receiptItemId,
             catalogItemId: r.catalogItemId,
             newPrice: r.newPrice,
+            hdSku: r.applySku ? r.receiptSku : null,
           })
         } else {
           out.push({ action: "skip", receiptItemId: r.receiptItemId })
@@ -163,6 +186,9 @@ export function CatalogUpdateReview({
             receiptItemId: r.receiptItemId,
             catalogItemId: r.pickedCatalogItemId,
             newPrice: r.parsedPrice,
+            // For uncertain rows, default to applying the SKU when
+            // we have one — the user just confirmed the match.
+            hdSku: r.receiptSku,
           })
         } else if (r.resolution === "new") {
           out.push({
@@ -172,6 +198,7 @@ export function CatalogUpdateReview({
             unit: r.unit,
             trade: r.newTrade,
             price: r.newPrice,
+            hdSku: r.receiptSku,
           })
         } else {
           out.push({ action: "skip", receiptItemId: r.receiptItemId })
@@ -185,6 +212,7 @@ export function CatalogUpdateReview({
             unit: r.unit,
             trade: r.trade,
             price: r.price,
+            hdSku: r.hdSku.trim() || null,
           })
         } else {
           out.push({ action: "skip", receiptItemId: r.receiptItemId })
@@ -292,6 +320,14 @@ export function CatalogUpdateReview({
                       <div className="text-[11px] text-foreground-soft">
                         per {r.unit}
                       </div>
+                      <SkuRow
+                        receiptSku={r.receiptSku}
+                        catalogSku={r.catalogSku}
+                        applySku={r.applySku}
+                        onToggleApply={(v) =>
+                          patchRow<LikelyState>(idx, { applySku: v })
+                        }
+                      />
                     </td>
                     <td className="px-3 py-2 text-right tabular-nums text-foreground-soft">
                       ${r.currentPrice.toFixed(2)}
@@ -348,6 +384,21 @@ export function CatalogUpdateReview({
                       <p className="text-sm text-foreground">{r.description}</p>
                       <p className="text-[11px] text-foreground-soft">
                         per {r.unit} · parsed at ${r.parsedPrice.toFixed(2)}
+                        {r.receiptSku ? (
+                          <>
+                            {" · "}
+                            <span className="font-medium text-foreground-muted">
+                              SKU {r.receiptSku}
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            {" · "}
+                            <span className="text-amber-700 bg-amber-50 border border-amber-200 rounded px-1 py-0.5 text-[10px]">
+                              SKU incomplete
+                            </span>
+                          </>
+                        )}
                       </p>
                     </div>
                     <select
@@ -485,6 +536,35 @@ export function CatalogUpdateReview({
                         }
                         className="sm:col-span-2 text-sm tabular-nums border border-border rounded px-2 py-1.5 bg-surface"
                       />
+                      <div className="sm:col-span-12 flex items-center gap-2">
+                        <label
+                          className="text-[10px] text-foreground-soft uppercase tracking-wider"
+                          title="Home Depot SKU. Lets the cart-builder jump straight to this item's PDP."
+                        >
+                          HD SKU
+                        </label>
+                        <input
+                          value={r.hdSku}
+                          onChange={(e) =>
+                            patchRow<NewState>(idx, { hdSku: e.target.value })
+                          }
+                          placeholder={
+                            r.hdSku
+                              ? ""
+                              : "SKU not parsed — leave blank or type manually"
+                          }
+                          className={`flex-1 text-xs tabular-nums border rounded px-2 py-1 bg-surface focus:outline-none focus:ring-1 focus:ring-accent ${
+                            r.hdSku.trim()
+                              ? "border-border text-foreground"
+                              : "border-amber-300 bg-amber-50 text-amber-900 placeholder:text-amber-700/70"
+                          }`}
+                        />
+                        {!r.hdSku.trim() && (
+                          <span className="text-[10px] font-medium text-amber-800 bg-amber-100 border border-amber-200 rounded px-1.5 py-0.5">
+                            SKU incomplete
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </li>
@@ -524,6 +604,85 @@ export function CatalogUpdateReview({
           </button>
         </div>
       </div>
+    </div>
+  )
+}
+
+/**
+ * Compact SKU status line under each likely-match row. Surfaces:
+ *   - SKUs in sync: "SKU 100075069 ✓"
+ *   - Catalog blank, receipt has one: checkbox to write through (default ON)
+ *   - SKUs differ: amber conflict warning + opt-in checkbox to overwrite
+ *   - Receipt SKU missing: "SKU incomplete" amber chip
+ *   - Both missing: nothing — don't add visual noise
+ */
+function SkuRow({
+  receiptSku,
+  catalogSku,
+  applySku,
+  onToggleApply,
+}: {
+  receiptSku: string | null
+  catalogSku: string | null
+  applySku: boolean
+  onToggleApply: (v: boolean) => void
+}) {
+  // Both empty — nothing to show.
+  if (!receiptSku && !catalogSku) {
+    return null
+  }
+
+  // Receipt couldn't read it but catalog has one already. Just show.
+  if (!receiptSku && catalogSku) {
+    return (
+      <div className="text-[10px] text-foreground-soft mt-0.5">
+        Catalog SKU: {catalogSku}
+      </div>
+    )
+  }
+
+  // Receipt has one, catalog doesn't — quiet win, default-applied.
+  if (receiptSku && !catalogSku) {
+    return (
+      <label className="flex items-center gap-1.5 text-[10px] text-foreground-soft mt-0.5 cursor-pointer">
+        <input
+          type="checkbox"
+          checked={applySku}
+          onChange={(e) => onToggleApply(e.target.checked)}
+          className="accent-accent w-3 h-3"
+        />
+        <span>
+          Save SKU <strong className="text-foreground">{receiptSku}</strong> from receipt
+        </span>
+      </label>
+    )
+  }
+
+  // Both present and equal → confirm.
+  if (receiptSku === catalogSku) {
+    return (
+      <div className="text-[10px] text-success mt-0.5">
+        SKU {receiptSku} ✓ matches catalog
+      </div>
+    )
+  }
+
+  // Conflict path — different SKUs.
+  return (
+    <div className="mt-0.5 flex items-center gap-2 text-[10px] bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5">
+      <span className="text-amber-900">
+        SKU conflict — catalog: <strong>{catalogSku}</strong>, receipt:{" "}
+        <strong>{receiptSku}</strong>
+      </span>
+      <label className="flex items-center gap-1 cursor-pointer text-amber-900">
+        <input
+          type="checkbox"
+          checked={applySku}
+          onChange={(e) => onToggleApply(e.target.checked)}
+          className="accent-accent w-3 h-3"
+        />
+        Overwrite
+      </label>
     </div>
   )
 }

@@ -374,12 +374,17 @@ export type CatalogUpdatePreview = {
     newPrice: number
     deltaPct: number
     confidence: number
+    /** SKU parsed off the receipt line. Null = parser couldn't read it. */
+    receiptSku: string | null
+    /** SKU already on the catalog row, if any. Null = catalog has no SKU yet. */
+    catalogSku: string | null
   }>
   uncertain: Array<{
     receiptItemId: string
     description: string
     unit: string
     parsedPrice: number
+    receiptSku: string | null
     candidates: Array<{
       catalogItemId: string
       description: string
@@ -393,6 +398,8 @@ export type CatalogUpdatePreview = {
     unit: string
     suggestedTrade: TradeSlug
     suggestedPrice: number
+    /** SKU parsed off the receipt line. Pre-fills the catalog row. */
+    receiptSku: string | null
   }>
 }
 
@@ -413,7 +420,14 @@ export async function previewCatalogUpdates(
     }),
     prisma.catalogItem.findMany({
       where: { userId, archived: false },
-      select: { id: true, description: true, unit: true, unitPrice: true, trade: true },
+      select: {
+        id: true,
+        description: true,
+        unit: true,
+        unitPrice: true,
+        trade: true,
+        hdSku: true,
+      },
     }),
   ])
 
@@ -458,6 +472,8 @@ export async function previewCatalogUpdates(
         newPrice: itemPrice,
         deltaPct,
         confidence: top.score,
+        receiptSku: item.sku,
+        catalogSku: cat.hdSku,
       })
     } else if (bucket === "uncertain") {
       preview.uncertain.push({
@@ -465,6 +481,7 @@ export async function previewCatalogUpdates(
         description: item.description,
         unit: item.unit,
         parsedPrice: itemPrice,
+        receiptSku: item.sku,
         candidates: scores
           .filter((s) => s.score >= 0.3)
           .slice(0, 5)
@@ -486,6 +503,7 @@ export async function previewCatalogUpdates(
         unit: item.unit,
         suggestedTrade: "finish",
         suggestedPrice: itemPrice,
+        receiptSku: item.sku,
       })
     }
   }
@@ -504,6 +522,14 @@ export type CatalogUpdateDecision =
       receiptItemId: string
       catalogItemId: string
       newPrice: number
+      /**
+       * Optional. When set AND the catalog row currently has no
+       * hdSku (or has the same one), write this through. We never
+       * silently overwrite a different existing SKU — that case is
+       * surfaced in the review UI with a conflict warning so the user
+       * picks explicitly.
+       */
+      hdSku?: string | null
     }
   | {
       action: "add-new"
@@ -512,6 +538,8 @@ export type CatalogUpdateDecision =
       unit: string
       trade: string
       price: number
+      /** SKU to set on the new catalog row. Null/undefined = leave empty. */
+      hdSku?: string | null
     }
   | { action: "skip"; receiptItemId: string }
 
@@ -529,9 +557,25 @@ export async function applyCatalogUpdates(
         if (d.action === "update-price") {
           // Scope on userId so a tampered catalogItemId can't write to
           // another user's catalog.
+          const data: { unitPrice: number; hdSku?: string } = {
+            unitPrice: Math.max(0, d.newPrice),
+          }
+          // Only write hdSku when the caller asked AND the catalog row
+          // currently has no SKU. This avoids silently clobbering a
+          // user-entered SKU with one parsed off a faded receipt; the
+          // review UI surfaces conflicts before we get here.
+          if (d.hdSku && d.hdSku.trim()) {
+            const existing = await tx.catalogItem.findFirst({
+              where: { id: d.catalogItemId, userId, archived: false },
+              select: { hdSku: true },
+            })
+            if (existing && (!existing.hdSku || existing.hdSku === d.hdSku.trim())) {
+              data.hdSku = d.hdSku.trim()
+            }
+          }
           const result = await tx.catalogItem.updateMany({
             where: { id: d.catalogItemId, userId, archived: false },
-            data: { unitPrice: Math.max(0, d.newPrice) },
+            data,
           })
           if (result.count > 0) updatedCount += result.count
         } else if (d.action === "add-new") {
@@ -543,6 +587,7 @@ export async function applyCatalogUpdates(
               unit: (d.unit || "ea").trim() || "ea",
               unitPrice: Math.max(0, d.price),
               kind: "material",
+              hdSku: d.hdSku?.trim() || null,
             },
           })
           createdCount++
