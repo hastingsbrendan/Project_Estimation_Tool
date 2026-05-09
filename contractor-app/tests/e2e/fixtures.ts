@@ -9,9 +9,18 @@ import path from "node:path"
 type Fixtures = {
   user: { id: string; email: string; name: string }
   session: { cookieName: string; token: string }
-  smoke: { projectId: string; receiptId: string; shareToken: string }
+  smoke: {
+    projectId: string
+    receiptId: string
+    shareToken: string
+    serviceLineItemId: string | null
+  }
   proposal: { projectId: string; shareToken: string }
   expired: { projectId: string; shareToken: string }
+  subs: {
+    a: { id: string; name: string }
+    b: { id: string; name: string }
+  }
 }
 
 let cached: Fixtures | null = null

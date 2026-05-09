@@ -202,18 +202,20 @@ model Section {
 }
 
 model LineItem {
-  id            String  @id @default(cuid())
+  id            String    @id @default(cuid())
   description   String
-  quantity      Float   @default(1)
-  unit          String  @default("ea") // ea, sqft, lf, hr, etc
-  unitPrice     Float   @default(0)
-  kind          String  @default("material") // "material" | "labor"
-  order         Int     @default(0)
+  quantity      Float     @default(1)
+  unit          String    @default("ea") // ea, sqft, lf, hr, etc
+  unitPrice     Float     @default(0)
+  kind          String    @default("material") // "material" | "labor"
+  order         Int       @default(0)
   sectionId     String
   catalogItemId String? // optional FK; null when line item was hand-typed
+  completedAt   DateTime? // service marked done — null while in progress; ignored on materials
 
-  section     Section      @relation(fields: [sectionId], references: [id], onDelete: Cascade)
-  catalogItem CatalogItem? @relation(fields: [catalogItemId], references: [id], onDelete: SetNull)
+  section      Section                 @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  catalogItem  CatalogItem?            @relation(fields: [catalogItemId], references: [id], onDelete: SetNull)
+  assignedSubs LineItemSubcontractor[]
 
   @@index([sectionId])
   @@index([catalogItemId])
@@ -282,11 +284,12 @@ model Subcontractor {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  user        User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  specialties SubcontractorSpecialty[]
-  ratings     SubcontractorRating[]
-  assignments ProjectSubcontractor[]
-  payments    SubcontractorPayment[]
+  user                User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  specialties         SubcontractorSpecialty[]
+  ratings             SubcontractorRating[]
+  assignments         ProjectSubcontractor[]
+  payments            SubcontractorPayment[]
+  lineItemAssignments LineItemSubcontractor[]
 
   @@index([userId])
   @@index([archived])
@@ -379,5 +382,26 @@ model SubcontractorRating {
   project       Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@unique([projectId, subcontractorId])
+  @@index([subcontractorId])
+}
+
+/// Granular accountability join. A service line item can have multiple
+/// assigned subs (plumber + helper), and a sub can be assigned to multiple
+/// services (Jose handles every plumbing row). Independent of the formal
+/// ProjectSubcontractor engagement — assigning a sub to a line item does
+/// NOT auto-create a project-level assignment row.
+///
+/// Schema is kind-agnostic; the UI only exposes the chips on services
+/// (kind="labor") so material rows stay inert.
+model LineItemSubcontractor {
+  lineItemId      String
+  subcontractorId String
+  notes           String?
+  createdAt       DateTime @default(now())
+
+  lineItem      LineItem      @relation(fields: [lineItemId], references: [id], onDelete: Cascade)
+  subcontractor Subcontractor @relation(fields: [subcontractorId], references: [id], onDelete: Cascade)
+
+  @@id([lineItemId, subcontractorId])
   @@index([subcontractorId])
 }

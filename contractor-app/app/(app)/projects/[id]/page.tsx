@@ -31,7 +31,11 @@ import {
   updateProjectSubcontractor,
   removeProjectSubcontractor,
   rateSubOnProject,
+  assignSubToService,
+  unassignSubFromService,
+  toggleServiceComplete,
 } from "./sub-actions"
+import { LineItemSubChips } from "./line-item-sub-chips"
 import { addPayment as logSubPayment } from "../../subs/payment-actions"
 import { ServicesPicker } from "./services-picker"
 import { RefreshPricesButton } from "./refresh-prices-button"
@@ -65,7 +69,18 @@ export default async function ProjectDetailPage({
       include: {
         sections: {
           orderBy: { order: "asc" },
-          include: { lineItems: { orderBy: { order: "asc" } } },
+          include: {
+            lineItems: {
+              orderBy: { order: "asc" },
+              include: {
+                assignedSubs: {
+                  include: {
+                    subcontractor: { select: { id: true, name: true } },
+                  },
+                },
+              },
+            },
+          },
         },
         rooms: { orderBy: { order: "asc" } },
         photos: { orderBy: { order: "asc" } },
@@ -582,7 +597,31 @@ export default async function ProjectDetailPage({
                               id={item.id}
                               handlePosition="leading"
                             >
-                              <LineItemRow projectId={project.id} item={item} />
+                              <div>
+                                <LineItemRow projectId={project.id} item={item} />
+                                <LineItemSubChips
+                                  projectId={project.id}
+                                  lineItemId={item.id}
+                                  completedAt={item.completedAt}
+                                  assignments={item.assignedSubs.map((a) => ({
+                                    subId: a.subcontractor.id,
+                                    name: a.subcontractor.name,
+                                  }))}
+                                  availableSubs={availableSubs}
+                                  assignAction={assignSubToService.bind(
+                                    null,
+                                    project.id,
+                                  )}
+                                  unassignAction={unassignSubFromService.bind(
+                                    null,
+                                    project.id,
+                                  )}
+                                  toggleCompleteAction={toggleServiceComplete.bind(
+                                    null,
+                                    project.id,
+                                  )}
+                                />
+                              </div>
                             </DraggableRow>
                           ))}
                         </SortableList>

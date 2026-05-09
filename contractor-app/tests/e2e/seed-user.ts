@@ -94,6 +94,29 @@ async function main() {
     },
   })
 
+  // Capture the smoke project's first service line item id so the W3.5
+  // service-assignment spec can target it directly without DOM scraping.
+  const smokeService = await prisma.lineItem.findFirst({
+    where: { section: { projectId: smokeProject.id }, kind: "labor" },
+    select: { id: true },
+  })
+
+  // Two known subs the W3.5 spec assigns to the smoke service.
+  const subA = await prisma.subcontractor.create({
+    data: {
+      userId: TEST_USER.id,
+      name: "Jose Plumbing E2E",
+      contactName: "Jose",
+    },
+  })
+  const subB = await prisma.subcontractor.create({
+    data: {
+      userId: TEST_USER.id,
+      name: "Sparky Electric E2E",
+      contactName: "Sparky",
+    },
+  })
+
   const smokeReceipt = await prisma.receipt.create({
     data: {
       userId: TEST_USER.id,
@@ -167,6 +190,11 @@ async function main() {
       projectId: smokeProject.id,
       receiptId: smokeReceipt.id,
       shareToken: SMOKE_SHARE_TOKEN,
+      serviceLineItemId: smokeService?.id ?? null,
+    },
+    subs: {
+      a: { id: subA.id, name: subA.name },
+      b: { id: subB.id, name: subB.name },
     },
     proposal: {
       projectId: proposalProject.id,

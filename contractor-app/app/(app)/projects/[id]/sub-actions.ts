@@ -189,3 +189,115 @@ export async function quickCreateSubAndAssign(
     return { ok: false, error: e instanceof Error ? e.message : "Could not create" }
   }
 }
+
+// ─────────────────────────────────────────────────────────────────────────
+// Per-line-item service assignments (W3.5)
+// Different altitude than ProjectSubcontractor: this is the granular
+// "who's doing this row" relationship that drives the inline checklist on
+// the project detail page. Independent of the project-level engagement —
+// assigning a sub here does NOT auto-create a ProjectSubcontractor row.
+
+/**
+ * Verify the line item belongs to a project the current user owns AND
+ * the subcontractor (if provided) belongs to the same user. Returns the
+ * userId for downstream use, throws if anything is off.
+ */
+async function requireLineItemAndOptionalSub(
+  projectId: string,
+  lineItemId: string,
+  subcontractorId?: string,
+): Promise<{ userId: string }> {
+  const { userId } = await requireProject(projectId)
+  // Scope through Section so we know the line item is *this* project's.
+  const lineItem = await prisma.lineItem.findFirst({
+    where: { id: lineItemId, section: { projectId } },
+    select: { id: true },
+  })
+  if (!lineItem) throw new Error("Line item not found")
+  if (subcontractorId) {
+    const sub = await prisma.subcontractor.findFirst({
+      where: { id: subcontractorId, userId },
+      select: { id: true },
+    })
+    if (!sub) throw new Error("Subcontractor not found")
+  }
+  return { userId }
+}
+
+export async function assignSubToService(
+  projectId: string,
+  lineItemId: string,
+  subcontractorId: string,
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    await requireLineItemAndOptionalSub(projectId, lineItemId, subcontractorId)
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Forbidden" }
+  }
+  try {
+    // Idempotent: composite primary key means a duplicate INSERT throws.
+    // upsert with empty update body is the cleanest "ensure exists" pattern.
+    await prisma.lineItemSubcontractor.upsert({
+      where: {
+        lineItemId_subcontractorId: { lineItemId, subcontractorId },
+      },
+      create: { lineItemId, subcontractorId },
+      update: {},
+    })
+    revalidatePath(`/projects/${projectId}`)
+    logInfo("assignSubToService", "Assigned sub to service", {
+      projectId,
+      lineItemId,
+      subcontractorId,
+    })
+    return { ok: true }
+  } catch (e) {
+    logError("assignSubToService", e, { projectId, lineItemId, subcontractorId })
+    return { ok: false, error: e instanceof Error ? e.message : "Could not assign" }
+  }
+}
+
+export async function unassignSubFromService(
+  projectId: string,
+  lineItemId: string,
+  subcontractorId: string,
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    await requireLineItemAndOptionalSub(projectId, lineItemId, subcontractorId)
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Forbidden" }
+  }
+  await prisma.lineItemSubcontractor.deleteMany({
+    where: { lineItemId, subcontractorId },
+  })
+  revalidatePath(`/projects/${projectId}`)
+  return { ok: true }
+}
+
+/**
+ * Flip the line item's completedAt between null and now(). Caller passes
+ * `done` so we don't have to fetch the row first to decide which way to
+ * flip — defensive against double-clicks.
+ */
+export async function toggleServiceComplete(
+  projectId: string,
+  lineItemId: string,
+  done: boolean,
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    await requireLineItemAndOptionalSub(projectId, lineItemId)
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Forbidden" }
+  }
+  await prisma.lineItem.updateMany({
+    where: { id: lineItemId, section: { projectId } },
+    data: { completedAt: done ? new Date() : null },
+  })
+  revalidatePath(`/projects/${projectId}`)
+  logInfo("toggleServiceComplete", "Toggled service completion", {
+    projectId,
+    lineItemId,
+    done,
+  })
+  return { ok: true }
+}
