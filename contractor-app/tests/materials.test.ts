@@ -90,3 +90,54 @@ describe("materialsTotal", () => {
     expect(materialsTotal([])).toBe(0)
   })
 })
+
+describe("aggregateMaterials hdSku passthrough", () => {
+  const mWithSku = (
+    description: string,
+    quantity: number,
+    unitPrice: number,
+    hdSku: string | null,
+    unit = "ea",
+  ) => ({
+    description,
+    quantity,
+    unitPrice,
+    unit,
+    kind: "material",
+    hdSku,
+  })
+
+  it("passes through a single SKU when the bucket agrees", () => {
+    const rows = aggregateMaterials([
+      mWithSku("Drywall sheet", 5, 12, "100075069"),
+      mWithSku("Drywall sheet", 3, 12, "100075069"),
+    ])
+    expect(rows).toHaveLength(1)
+    expect(rows[0].hdSku).toBe("100075069")
+  })
+
+  it("drops the SKU when bucket has conflicting SKUs", () => {
+    const rows = aggregateMaterials([
+      mWithSku("Drywall sheet", 5, 12, "100075069"),
+      mWithSku("Drywall sheet", 3, 12, "999999999"),
+    ])
+    expect(rows).toHaveLength(1)
+    expect(rows[0].hdSku).toBeNull()
+  })
+
+  it("returns null hdSku when no items had one", () => {
+    const rows = aggregateMaterials([
+      mWithSku("Drywall sheet", 5, 12, null),
+      mWithSku("Drywall sheet", 3, 12, null),
+    ])
+    expect(rows[0].hdSku).toBeNull()
+  })
+
+  it("keeps the SKU even when only one of the lines provided it", () => {
+    const rows = aggregateMaterials([
+      mWithSku("Drywall sheet", 5, 12, "100075069"),
+      mWithSku("Drywall sheet", 3, 12, null),
+    ])
+    expect(rows[0].hdSku).toBe("100075069")
+  })
+})

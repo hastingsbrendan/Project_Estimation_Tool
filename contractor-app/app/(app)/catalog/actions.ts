@@ -5,20 +5,10 @@ import { revalidatePath } from "next/cache"
 import { CATALOG_SEED } from "@/seeds/catalog"
 import { requireUserId } from "@/lib/auth-helpers"
 import { seedDefaultCatalogForUser } from "@/lib/seed-default-catalog"
+import { parseTradeSlug } from "@/lib/catalog/trades"
 
-const ALLOWED_TRADES = [
-  "demo",
-  "framing",
-  "plumbing",
-  "electrical",
-  "drywall",
-  "finish",
-] as const
-type Trade = (typeof ALLOWED_TRADES)[number]
-
-function parseTrade(v: FormDataEntryValue | null): Trade {
-  const s = String(v ?? "").trim().toLowerCase()
-  return (ALLOWED_TRADES as readonly string[]).includes(s) ? (s as Trade) : "finish"
+function parseTrade(v: FormDataEntryValue | null): string {
+  return parseTradeSlug(v == null ? null : String(v))
 }
 
 function parseKind(v: FormDataEntryValue | null): "material" | "labor" {
@@ -28,6 +18,17 @@ function parseKind(v: FormDataEntryValue | null): "material" | "labor" {
 function parseFloatSafe(v: FormDataEntryValue | null, fallback = 0): number {
   const n = Number(v ?? fallback)
   return Number.isFinite(n) ? n : fallback
+}
+
+/**
+ * SKU input from the catalog UI. Trim, drop empty → null. We don't
+ * validate the format because Home Depot has at least three SKU
+ * conventions (8-digit, 10-digit OMSID, store SKU) plus the user
+ * may want to paste in Lowe's / vendor SKUs later.
+ */
+function parseSku(v: FormDataEntryValue | null): string | null {
+  const s = String(v ?? "").trim()
+  return s.length > 0 ? s : null
 }
 
 export async function createCatalogItem(
@@ -45,6 +46,7 @@ export async function createCatalogItem(
       unit: String(formData.get("unit") ?? "ea").trim() || "ea",
       unitPrice: parseFloatSafe(formData.get("unitPrice")),
       kind: parseKind(formData.get("kind")),
+      hdSku: parseSku(formData.get("hdSku")),
       notes: String(formData.get("notes") ?? "").trim() || null,
     },
   })
@@ -60,6 +62,10 @@ export async function updateCatalogItem(itemId: string, formData: FormData): Pro
   const description = String(formData.get("description") ?? "").trim()
   if (!description) return
 
+  // SKU is only included in the update if the form sent it. AutoSaveForm
+  // posts the whole row, so absent = "field not on this form" rather
+  // than "user cleared it." parseSku("") is null, which DOES clear it.
+  const skuField = formData.get("hdSku")
   await prisma.catalogItem.update({
     where: { id: itemId },
     data: {
@@ -68,6 +74,7 @@ export async function updateCatalogItem(itemId: string, formData: FormData): Pro
       unit: String(formData.get("unit") ?? "ea").trim() || "ea",
       unitPrice: parseFloatSafe(formData.get("unitPrice")),
       kind: parseKind(formData.get("kind")),
+      ...(skuField !== null ? { hdSku: parseSku(skuField) } : {}),
       notes: String(formData.get("notes") ?? "").trim() || null,
     },
   })

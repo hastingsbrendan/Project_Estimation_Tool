@@ -50,7 +50,39 @@ export async function GET(
     }
 
     const allLineItems = project.sections.flatMap((s) => s.lineItems)
-    const rows: MaterialRow[] = aggregateMaterials(allLineItems)
+
+    // Resolve hdSku for each line item via its catalogItemId. We fetch
+    // only the catalog rows we actually need (one query, no N+1) and
+    // pass the SKU into aggregateMaterials so the cart-builder can
+    // use SKU search instead of fuzzy description matching.
+    const catalogIds = Array.from(
+      new Set(
+        allLineItems
+          .map((li) => li.catalogItemId)
+          .filter((id): id is string => typeof id === "string"),
+      ),
+    )
+    const catalogRows =
+      catalogIds.length > 0
+        ? await prisma.catalogItem.findMany({
+            where: { id: { in: catalogIds }, userId: user.id },
+            select: { id: true, hdSku: true },
+          })
+        : []
+    const skuById = new Map<string, string | null>(
+      catalogRows.map((c) => [c.id, c.hdSku]),
+    )
+
+    const rows: MaterialRow[] = aggregateMaterials(
+      allLineItems.map((li) => ({
+        description: li.description,
+        quantity: li.quantity,
+        unit: li.unit,
+        unitPrice: li.unitPrice,
+        kind: li.kind,
+        hdSku: li.catalogItemId ? skuById.get(li.catalogItemId) ?? null : null,
+      })),
+    )
 
     const payload = {
       project: {
@@ -60,14 +92,14 @@ export async function GET(
         clientName: project.clientName,
       },
       materials: rows.map((r) => ({
-        // No catalogItemId yet — aggregateMaterials groups by description+unit
-        // so the link back to a single CatalogItem is approximate. The
-        // extension's matcher works off description+unit anyway.
         description: r.description,
         unit: r.unit,
         quantity: r.quantity,
         estUnitPrice: r.estUnitPrice,
         estSubtotal: r.estSubtotal,
+        // Surface the SKU when known; the extension uses it to skip
+        // fuzzy text search and navigate straight to the PDP.
+        hdSku: r.hdSku,
         notes: null as string | null,
       })),
       generatedAt: new Date().toISOString(),

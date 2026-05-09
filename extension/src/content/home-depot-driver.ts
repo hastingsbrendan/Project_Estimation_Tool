@@ -217,6 +217,34 @@ function setItemStatus(idx: number, status: RunItemStatus) {
 const SEARCH_URL = (q: string) =>
   `https://www.homedepot.com/s/${encodeURIComponent(q)}`
 
+/**
+ * Pick a search URL for a material:
+ *   - if the contractor saved an HD SKU, search by SKU. HD's search
+ *     redirects to the exact PDP for an exact SKU match — much more
+ *     reliable than description fuzzy matching.
+ *   - otherwise fall back to the description.
+ */
+function searchUrlFor(material: Material): string {
+  if (material.hdSku && material.hdSku.trim()) {
+    return SEARCH_URL(material.hdSku.trim())
+  }
+  return SEARCH_URL(material.description)
+}
+
+function isOnSearchPageFor(material: Material): boolean {
+  const target = searchUrlFor(material).split("?")[0]!
+  // SKU search often redirects to a /p/ PDP URL — accept either.
+  if (window.location.href.startsWith(target)) return true
+  if (
+    material.hdSku &&
+    material.hdSku.trim() &&
+    new RegExp(`/${material.hdSku.trim()}(?:[/?#]|$)`).test(window.location.href)
+  ) {
+    return true
+  }
+  return false
+}
+
 function waitFor<T extends Element = Element>(
   selector: string,
   deadlineMs = 8000,
@@ -325,21 +353,6 @@ async function addToCart(candidate: Candidate): Promise<{ ok: boolean; error?: s
 // ─────────────────────────────────────────────────────────────────────────
 // Per-material orchestration (driven by the worker)
 // ─────────────────────────────────────────────────────────────────────────
-
-/**
- * Returns the search URL the driver needs to be on to scrape candidates
- * for a given material. Used by the listener to detect needed navigations
- * BEFORE invoking driveMaterial (which can only run when we're on the
- * right page).
- */
-function searchUrlFor(material: Material): string {
-  return SEARCH_URL(material.description)
-}
-
-function isOnSearchPageFor(material: Material): boolean {
-  const target = searchUrlFor(material).split("?")[0]!
-  return window.location.href.startsWith(target)
-}
 
 async function driveMaterial(
   idx: number,

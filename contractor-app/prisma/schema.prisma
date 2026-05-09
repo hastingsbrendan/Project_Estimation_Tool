@@ -229,11 +229,15 @@ model LineItem {
 
 model CatalogItem {
   id          String   @id @default(cuid())
-  trade       String   // demo, framing, plumbing, electrical, drywall, finish
+  trade       String   // see lib/catalog/trades.ts for canonical slugs
   description String
   unit        String   @default("ea")
   unitPrice   Float    @default(0)
   kind        String   @default("material") // "material" | "labor"
+  // Home Depot SKU. When set, the cart-builder extension navigates
+  // straight to the PDP via SKU search instead of fuzzy text match.
+  // Free-form string so we don't reject Lowe's / vendor SKUs later.
+  hdSku       String?
   notes       String?
   archived    Boolean  @default(false)
   createdAt   DateTime @default(now())

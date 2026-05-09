@@ -26,13 +26,21 @@
  */
 import { PrismaLibSql } from "@prisma/adapter-libsql"
 import { PrismaClient } from "../app/generated/prisma/client"
+import type { TradeSlug } from "../lib/catalog/trades"
 
 type SeedItem = {
-  trade: "demo" | "framing" | "plumbing" | "electrical" | "drywall" | "finish"
+  trade: TradeSlug
   description: string
   unit: string
   unitPrice: number
   kind: "material" | "labor"
+  /**
+   * Optional Home Depot SKU. When present, the cart-builder navigates
+   * straight to the PDP for this SKU instead of fuzzy-searching by
+   * description. Leave empty when you don't have a known SKU on hand —
+   * the user can paste it in via the catalog UI later.
+   */
+  hdSku?: string
   notes?: string
 }
 
@@ -104,7 +112,7 @@ const HD_TEST_PRODUCTS: SeedItem[] = [
     notes: "Southwire 12-2 with ground. 250 ft coils also common.",
   },
   {
-    trade: "finish",
+    trade: "painting",
     description: "Caulk, white, paintable, 10 oz tube",
     unit: "ea",
     unitPrice: 4.85,
@@ -112,7 +120,7 @@ const HD_TEST_PRODUCTS: SeedItem[] = [
     notes: "DAP Alex Plus or equivalent acrylic latex.",
   },
   {
-    trade: "finish",
+    trade: "painting",
     description: "Latex paint, eggshell, 1 gallon, white",
     unit: "gal",
     unitPrice: 41.0,
@@ -175,6 +183,7 @@ async function main() {
       unit: p.unit,
       unitPrice: p.unitPrice,
       kind: p.kind,
+      hdSku: p.hdSku ?? null,
       notes: p.notes ?? null,
     })),
   })

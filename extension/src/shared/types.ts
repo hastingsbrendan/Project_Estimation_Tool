@@ -11,6 +11,12 @@ export type Material = {
   quantity: number
   estUnitPrice: number
   estSubtotal: number
+  /**
+   * Home Depot SKU when the contractor saved one on the catalog item.
+   * The driver uses SKU search (`/s/<sku>`) to land on the exact PDP
+   * instead of fuzzy text matching. Null = fall back to description.
+   */
+  hdSku: string | null
   notes: string | null
 }
 

@@ -2,6 +2,7 @@
 
 import { useMemo, useRef, useState, useTransition } from "react"
 import { AutoSaveForm } from "../projects/[id]/auto-form"
+import { TRADES as TRADE_OPTIONS } from "@/lib/catalog/trades"
 
 type CatalogItemView = {
   id: string
@@ -10,6 +11,7 @@ type CatalogItemView = {
   unit: string
   unitPrice: number
   kind: string
+  hdSku: string | null
   notes: string | null
 }
 
@@ -25,12 +27,7 @@ export type PresetView = {
 
 const TRADES = [
   { value: "", label: "All" },
-  { value: "demo", label: "Demo" },
-  { value: "framing", label: "Framing" },
-  { value: "plumbing", label: "Plumbing" },
-  { value: "electrical", label: "Electrical" },
-  { value: "drywall", label: "Drywall" },
-  { value: "finish", label: "Finish" },
+  ...TRADE_OPTIONS,
 ] as const
 
 export function CatalogTable({
@@ -160,6 +157,15 @@ export function CatalogTable({
                 placeholder={kindLock === "labor" ? "e.g. Frame interior partition wall" : "e.g. 2x4 stud, 8ft, SPF"}
                 className="w-full border border-border rounded px-2 py-1.5 bg-surface focus:outline-none focus:ring-1 focus:ring-accent"
               />
+              {kindLock !== "labor" && (
+                <div className="mt-1.5">
+                  <input
+                    name="hdSku"
+                    placeholder="HD SKU (optional, e.g. 100075069) — speeds up cart-builder"
+                    className="w-full border border-border rounded px-2 py-1 bg-surface text-xs text-foreground-muted focus:outline-none focus:ring-1 focus:ring-accent"
+                  />
+                </div>
+              )}
             </div>
             <div className="col-span-6 sm:col-span-2">
               <label className="block text-xs text-foreground-muted mb-0.5">Trade</label>
@@ -376,6 +382,22 @@ function CatalogRow({
                 defaultValue={item.description}
                 className="w-full bg-transparent border-b border-transparent hover:border-border focus:border-accent focus:outline-none px-1 py-0.5 -mx-1 text-foreground"
               />
+              {!isLabor && (
+                <div className="flex items-center gap-1 mt-0.5">
+                  <span
+                    className="text-[10px] text-foreground-soft px-1 -mx-0.5"
+                    title="Home Depot SKU. When present, the cart-builder extension navigates straight to this product instead of fuzzy-searching by description."
+                  >
+                    HD SKU:
+                  </span>
+                  <input
+                    name="hdSku"
+                    defaultValue={item.hdSku ?? ""}
+                    placeholder="—"
+                    className="flex-1 max-w-[12rem] bg-transparent border-b border-transparent hover:border-border focus:border-accent focus:outline-none px-1 py-0 text-[11px] text-foreground-muted placeholder:text-foreground-soft"
+                  />
+                </div>
+              )}
               {isLabor && (
                 <button
                   type="button"

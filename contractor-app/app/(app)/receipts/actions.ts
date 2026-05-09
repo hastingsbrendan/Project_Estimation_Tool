@@ -357,22 +357,10 @@ import {
   type FuzzyCandidate,
 } from "@/lib/catalog/fuzzy-match"
 
-const ALLOWED_TRADES = [
-  "demo",
-  "framing",
-  "plumbing",
-  "electrical",
-  "drywall",
-  "finish",
-] as const
+import { parseTradeSlug, type TradeSlug } from "@/lib/catalog/trades"
 
-type Trade = (typeof ALLOWED_TRADES)[number]
-
-function pickTrade(v: string | null | undefined): Trade {
-  const s = String(v ?? "").trim().toLowerCase()
-  return (ALLOWED_TRADES as readonly string[]).includes(s)
-    ? (s as Trade)
-    : "finish"
+function pickTrade(v: string | null | undefined): TradeSlug {
+  return parseTradeSlug(v)
 }
 
 export type CatalogUpdatePreview = {
@@ -403,7 +391,7 @@ export type CatalogUpdatePreview = {
     receiptItemId: string
     description: string
     unit: string
-    suggestedTrade: Trade
+    suggestedTrade: TradeSlug
     suggestedPrice: number
   }>
 }

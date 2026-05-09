@@ -29,7 +29,37 @@ export default async function MaterialsPage({
   if (!project) notFound()
 
   const allLineItems = project.sections.flatMap((s) => s.lineItems)
-  const rows = aggregateMaterials(allLineItems)
+
+  // Join through CatalogItem.hdSku so the materials list (and the
+  // cart-builder that consumes it) can show the HD SKU per row.
+  const catalogIds = Array.from(
+    new Set(
+      allLineItems
+        .map((li) => li.catalogItemId)
+        .filter((id): id is string => typeof id === "string"),
+    ),
+  )
+  const catalogRows =
+    catalogIds.length > 0
+      ? await prisma.catalogItem.findMany({
+          where: { id: { in: catalogIds }, userId: user.id },
+          select: { id: true, hdSku: true },
+        })
+      : []
+  const skuById = new Map<string, string | null>(
+    catalogRows.map((c) => [c.id, c.hdSku]),
+  )
+
+  const rows = aggregateMaterials(
+    allLineItems.map((li) => ({
+      description: li.description,
+      quantity: li.quantity,
+      unit: li.unit,
+      unitPrice: li.unitPrice,
+      kind: li.kind,
+      hdSku: li.catalogItemId ? skuById.get(li.catalogItemId) ?? null : null,
+    })),
+  )
   const total = materialsTotal(rows)
 
   return (
@@ -73,7 +103,8 @@ export default async function MaterialsPage({
       ) : (
         <div className="bg-surface border border-border rounded-lg overflow-hidden">
           <div className="hidden sm:grid grid-cols-12 gap-2 px-4 py-2 bg-surface-muted text-[10px] font-medium uppercase tracking-wider text-foreground-soft">
-            <div className="col-span-6">Description</div>
+            <div className="col-span-5">Description</div>
+            <div className="col-span-1">HD SKU</div>
             <div className="col-span-1 text-right">Qty</div>
             <div className="col-span-1">Unit</div>
             <div className="col-span-2 text-right">Est $/unit</div>
@@ -82,7 +113,22 @@ export default async function MaterialsPage({
           <div className="divide-y divide-border">
             {rows.map((r, i) => (
               <div key={i} className="grid grid-cols-12 gap-2 px-4 py-2.5 text-sm items-baseline">
-                <div className="col-span-12 sm:col-span-6 text-foreground">{r.description}</div>
+                <div className="col-span-12 sm:col-span-5 text-foreground">{r.description}</div>
+                <div className="col-span-6 sm:col-span-1 text-[11px] tabular-nums">
+                  {r.hdSku ? (
+                    <a
+                      href={`https://www.homedepot.com/s/${encodeURIComponent(r.hdSku)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-accent hover:underline"
+                      title="Open this SKU on Home Depot"
+                    >
+                      {r.hdSku}
+                    </a>
+                  ) : (
+                    <span className="text-foreground-soft">—</span>
+                  )}
+                </div>
                 <div className="col-span-3 sm:col-span-1 text-right tabular-nums text-foreground">
                   {r.quantity}
                 </div>

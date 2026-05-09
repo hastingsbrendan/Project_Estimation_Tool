@@ -1,12 +1,15 @@
 /**
- * Seed catalog — ~300 line items across 6 trades.
+ * Seed catalog — line items across the canonical trades.
  *
- * Prices are 2025 ballpark US averages and explicitly meant to be edited
- * by each user. Mark items the user must verify before sending to a client.
+ * Trade slugs come from `lib/catalog/trades.ts` so adding a new trade
+ * doesn't require touching this file's type. Prices are 2025 ballpark
+ * US averages and explicitly meant to be edited by each user.
  */
 
+import type { TradeSlug } from "@/lib/catalog/trades"
+
 export type CatalogSeedItem = {
-  trade: "demo" | "framing" | "plumbing" | "electrical" | "drywall" | "finish"
+  trade: TradeSlug
   description: string
   unit: string
   unitPrice: number
@@ -288,10 +291,10 @@ export const CATALOG_SEED: CatalogSeedItem[] = [
   // FINISH (50 items)
   // ============================================
   { trade: "finish", description: "Finish carpenter labor", unit: "hr", unitPrice: 85, kind: "labor" },
-  { trade: "finish", description: "Painter labor", unit: "hr", unitPrice: 55, kind: "labor" },
-  { trade: "finish", description: "Tile setter labor", unit: "hr", unitPrice: 75, kind: "labor" },
-  { trade: "finish", description: "Hardwood floor installer labor", unit: "hr", unitPrice: 65, kind: "labor" },
-  { trade: "finish", description: "Carpet installer labor", unit: "sqft", unitPrice: 0.85, kind: "labor" },
+  { trade: "painting", description: "Painter labor", unit: "hr", unitPrice: 55, kind: "labor" },
+  { trade: "tile", description: "Tile setter labor", unit: "hr", unitPrice: 75, kind: "labor" },
+  { trade: "flooring", description: "Hardwood floor installer labor", unit: "hr", unitPrice: 65, kind: "labor" },
+  { trade: "flooring", description: "Carpet installer labor", unit: "sqft", unitPrice: 0.85, kind: "labor" },
   { trade: "finish", description: "Interior door, hollow-core 30 in pre-hung", unit: "ea", unitPrice: 95, kind: "material" },
   { trade: "finish", description: "Interior door, solid-core 30 in pre-hung", unit: "ea", unitPrice: 195, kind: "material" },
   { trade: "finish", description: "Interior door, panel solid 36 in pre-hung", unit: "ea", unitPrice: 285, kind: "material" },
@@ -318,25 +321,53 @@ export const CATALOG_SEED: CatalogSeedItem[] = [
   { trade: "finish", description: "Install door & casing", unit: "ea", unitPrice: 245, kind: "labor" },
   { trade: "finish", description: "Install pre-hung interior door", unit: "ea", unitPrice: 165, kind: "labor" },
   { trade: "finish", description: "Hang interior door (only)", unit: "ea", unitPrice: 95, kind: "labor" },
-  { trade: "finish", description: "Paint, premium interior, 1 gal", unit: "ea", unitPrice: 65, kind: "material" },
-  { trade: "finish", description: "Paint, mid-range interior, 1 gal", unit: "ea", unitPrice: 38.5, kind: "material" },
-  { trade: "finish", description: "Primer, 1 gal", unit: "ea", unitPrice: 28.5, kind: "material" },
-  { trade: "finish", description: "Painter's tape, 1.88 in x 60 yd", unit: "ea", unitPrice: 9.5, kind: "material" },
-  { trade: "finish", description: "Drop cloth, 9x12 canvas", unit: "ea", unitPrice: 22.5, kind: "material" },
-  { trade: "finish", description: "Roller cover, 9 in (3-pk)", unit: "ea", unitPrice: 14.5, kind: "material" },
-  { trade: "finish", description: "Paint walls — 2 coats + primer", unit: "sqft", unitPrice: 1.85, kind: "labor" },
-  { trade: "finish", description: "Paint ceiling — flat white", unit: "sqft", unitPrice: 1.25, kind: "labor" },
-  { trade: "finish", description: "Paint trim & doors", unit: "lf", unitPrice: 2.5, kind: "labor" },
-  { trade: "finish", description: "Tile, 12x24 porcelain, per sqft", unit: "sqft", unitPrice: 4.85, kind: "material" },
-  { trade: "finish", description: "Tile, subway 3x6 ceramic, per sqft", unit: "sqft", unitPrice: 4.5, kind: "material" },
-  { trade: "finish", description: "Tile, premium porcelain, per sqft", unit: "sqft", unitPrice: 9.85, kind: "material" },
-  { trade: "finish", description: "Thinset mortar, 50 lb", unit: "ea", unitPrice: 22.5, kind: "material" },
-  { trade: "finish", description: "Grout, sanded 25 lb", unit: "ea", unitPrice: 24.5, kind: "material" },
-  { trade: "finish", description: "Tile spacers, 1/8 in (200 ct)", unit: "ea", unitPrice: 6.5, kind: "material" },
-  { trade: "finish", description: "Set wall tile", unit: "sqft", unitPrice: 11.5, kind: "labor" },
-  { trade: "finish", description: "Set floor tile", unit: "sqft", unitPrice: 9.85, kind: "labor" },
-  { trade: "finish", description: "Hardwood floor, 3/4 in oak, per sqft", unit: "sqft", unitPrice: 6.85, kind: "material" },
-  { trade: "finish", description: "Install hardwood flooring", unit: "sqft", unitPrice: 4.85, kind: "labor" },
-  { trade: "finish", description: "Luxury vinyl plank, per sqft", unit: "sqft", unitPrice: 3.85, kind: "material" },
-  { trade: "finish", description: "Install LVP flooring", unit: "sqft", unitPrice: 2.5, kind: "labor" },
+  { trade: "painting", description: "Paint, premium interior, 1 gal", unit: "ea", unitPrice: 65, kind: "material" },
+  { trade: "painting", description: "Paint, mid-range interior, 1 gal", unit: "ea", unitPrice: 38.5, kind: "material" },
+  { trade: "painting", description: "Primer, 1 gal", unit: "ea", unitPrice: 28.5, kind: "material" },
+  { trade: "painting", description: "Painter's tape, 1.88 in x 60 yd", unit: "ea", unitPrice: 9.5, kind: "material" },
+  { trade: "painting", description: "Drop cloth, 9x12 canvas", unit: "ea", unitPrice: 22.5, kind: "material" },
+  { trade: "painting", description: "Roller cover, 9 in (3-pk)", unit: "ea", unitPrice: 14.5, kind: "material" },
+  { trade: "painting", description: "Paint walls — 2 coats + primer", unit: "sqft", unitPrice: 1.85, kind: "labor" },
+  { trade: "painting", description: "Paint ceiling — flat white", unit: "sqft", unitPrice: 1.25, kind: "labor" },
+  { trade: "painting", description: "Paint trim & doors", unit: "lf", unitPrice: 2.5, kind: "labor" },
+  { trade: "tile", description: "Tile, 12x24 porcelain, per sqft", unit: "sqft", unitPrice: 4.85, kind: "material" },
+  { trade: "tile", description: "Tile, subway 3x6 ceramic, per sqft", unit: "sqft", unitPrice: 4.5, kind: "material" },
+  { trade: "tile", description: "Tile, premium porcelain, per sqft", unit: "sqft", unitPrice: 9.85, kind: "material" },
+  { trade: "tile", description: "Thinset mortar, 50 lb", unit: "ea", unitPrice: 22.5, kind: "material" },
+  { trade: "tile", description: "Grout, sanded 25 lb", unit: "ea", unitPrice: 24.5, kind: "material" },
+  { trade: "tile", description: "Tile spacers, 1/8 in (200 ct)", unit: "ea", unitPrice: 6.5, kind: "material" },
+  { trade: "tile", description: "Set wall tile", unit: "sqft", unitPrice: 11.5, kind: "labor" },
+  { trade: "tile", description: "Set floor tile", unit: "sqft", unitPrice: 9.85, kind: "labor" },
+  { trade: "flooring", description: "Hardwood floor, 3/4 in oak, per sqft", unit: "sqft", unitPrice: 6.85, kind: "material" },
+  { trade: "flooring", description: "Install hardwood flooring", unit: "sqft", unitPrice: 4.85, kind: "labor" },
+  { trade: "flooring", description: "Luxury vinyl plank, per sqft", unit: "sqft", unitPrice: 3.85, kind: "material" },
+  { trade: "flooring", description: "Install LVP flooring", unit: "sqft", unitPrice: 2.5, kind: "labor" },
+  { trade: "flooring", description: "Carpet, mid-grade nylon, per sqyd", unit: "sqyd", unitPrice: 24.5, kind: "material" },
+  { trade: "flooring", description: "Carpet pad, 8 lb rebond, per sqyd", unit: "sqyd", unitPrice: 4.5, kind: "material" },
+  { trade: "flooring", description: "Underlayment, 1/4 in plywood, per sheet", unit: "ea", unitPrice: 22.5, kind: "material" },
+  { trade: "flooring", description: "Floor leveling compound, 50 lb", unit: "ea", unitPrice: 38.5, kind: "material" },
+  { trade: "flooring", description: "Transition strip, T-mold per ft", unit: "lf", unitPrice: 8.5, kind: "material" },
+  { trade: "flooring", description: "Refinish hardwood — sand, stain, 3 coats", unit: "sqft", unitPrice: 4.5, kind: "labor" },
+
+  // ============================================
+  // HVAC (12 items)
+  // ============================================
+  { trade: "hvac", description: "HVAC tech labor", unit: "hr", unitPrice: 95, kind: "labor" },
+  { trade: "hvac", description: "Furnace, 80% gas 80kBTU", unit: "ea", unitPrice: 1850, kind: "material" },
+  { trade: "hvac", description: "Furnace, 96% high-eff gas 80kBTU", unit: "ea", unitPrice: 2850, kind: "material" },
+  { trade: "hvac", description: "AC condenser, 2.5 ton 14 SEER", unit: "ea", unitPrice: 1650, kind: "material" },
+  { trade: "hvac", description: "AC condenser, 3 ton 16 SEER", unit: "ea", unitPrice: 2250, kind: "material" },
+  { trade: "hvac", description: "Mini-split head, 12k BTU", unit: "ea", unitPrice: 685, kind: "material" },
+  { trade: "hvac", description: "Mini-split outdoor unit, 24k BTU", unit: "ea", unitPrice: 1485, kind: "material" },
+  { trade: "hvac", description: "Smart thermostat (Nest/ecobee class)", unit: "ea", unitPrice: 215, kind: "material" },
+  { trade: "hvac", description: "Programmable thermostat, basic", unit: "ea", unitPrice: 38.5, kind: "material" },
+  { trade: "hvac", description: "Flex duct, R8 8 in x 25 ft", unit: "ea", unitPrice: 65, kind: "material" },
+  { trade: "hvac", description: "Sheet metal duct, 6 in round per ft", unit: "lf", unitPrice: 4.85, kind: "material" },
+  { trade: "hvac", description: "Supply register, 4x10 brushed nickel", unit: "ea", unitPrice: 22.5, kind: "material" },
+  { trade: "hvac", description: "Return air grille, 14x20", unit: "ea", unitPrice: 28.5, kind: "material" },
+  { trade: "hvac", description: "Furnace install (replacement)", unit: "ea", unitPrice: 1450, kind: "labor" },
+  { trade: "hvac", description: "AC install (replacement, with line set)", unit: "ea", unitPrice: 1850, kind: "labor" },
+  { trade: "hvac", description: "Mini-split install (head + line set)", unit: "ea", unitPrice: 1250, kind: "labor" },
+  { trade: "hvac", description: "Duct run, new 8 in to register", unit: "ea", unitPrice: 285, kind: "labor" },
+  { trade: "hvac", description: "Replace thermostat", unit: "ea", unitPrice: 145, kind: "labor" },
 ]

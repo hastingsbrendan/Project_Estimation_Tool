@@ -72,6 +72,7 @@ export default async function MaterialsCatalogPage() {
             unit: i.unit,
             unitPrice: i.unitPrice,
             kind: i.kind,
+            hdSku: i.hdSku,
             notes: i.notes,
           }))}
           presetsByService={Object.fromEntries(

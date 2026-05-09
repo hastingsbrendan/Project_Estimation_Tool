@@ -6,15 +6,7 @@ import type {
   CatalogUpdatePreview,
   CatalogUpdateDecision,
 } from "../actions"
-
-const TRADES = [
-  { value: "demo", label: "Demo" },
-  { value: "framing", label: "Framing" },
-  { value: "plumbing", label: "Plumbing" },
-  { value: "electrical", label: "Electrical" },
-  { value: "drywall", label: "Drywall" },
-  { value: "finish", label: "Finish" },
-] as const
+import { TRADES } from "@/lib/catalog/trades"
 
 /**
  * Per-row state the review screen tracks. Mirrors the three buckets but
