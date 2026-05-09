@@ -245,6 +245,63 @@ function isOnSearchPageFor(material: Material): boolean {
   return false
 }
 
+/**
+ * HD Product Detail Pages live at /p/<slug>/<id> URLs. SKU searches
+ * frequently redirect straight to a PDP, in which case there are no
+ * search-result cards to scrape — we have to read the product info
+ * off the PDP itself.
+ */
+function isOnPdp(): boolean {
+  return /\/p\/[^/]+\/\d+/.test(window.location.pathname)
+}
+
+/**
+ * Build a single Candidate from the current PDP. Used when an SKU
+ * search redirected us straight to a product page — we trust the
+ * SKU match and skip the Claude matcher (which is for ranking
+ * search-result candidates, not for confirming exact SKU hits).
+ */
+function scrapePdp(): Candidate | null {
+  const titleEl = document.querySelector<HTMLElement>(
+    'h1[data-testid="product-title"], h1.product-details__title, .product-details__title, h1',
+  )
+  const title = titleEl?.textContent?.trim() ?? ""
+  if (!title) return null
+
+  // SKU comes from the URL. /p/<slug>/<sku>... or /p/<sku>.
+  const skuMatch = window.location.pathname.match(/\/p\/(?:[^/]+\/)?(\d+)/)
+  const sku = skuMatch?.[1] ?? ""
+
+  const priceEl = document.querySelector<HTMLElement>(
+    '[data-testid="product-pod--price"], [data-testid*="price"], [class*="price-format__main-price"], [class*="price__dollars"]',
+  )
+  const price = parsePrice(priceEl?.textContent ?? "")
+
+  // Stock: HD shows variants of "Out of Stock", "Unavailable",
+  // "Limited stock for pickup". We're conservative — only flag OOS
+  // when we see the explicit "out of stock" text; everything else
+  // we treat as buyable and let the ATC click decide.
+  const bodyText = document.body.textContent?.toLowerCase() ?? ""
+  const inStock = !/out of stock\b/i.test(bodyText)
+
+  const brandEl = document.querySelector<HTMLElement>(
+    '[data-testid*="brand"], .product-details__brand-name, .product-details__manufacturer',
+  )
+  const brand = brandEl?.textContent?.trim() || null
+
+  const pack = extractPack(title)
+
+  return {
+    title,
+    sku,
+    url: window.location.href,
+    price,
+    inStock,
+    brand,
+    pack,
+  }
+}
+
 function waitFor<T extends Element = Element>(
   selector: string,
   deadlineMs = 8000,
@@ -335,16 +392,50 @@ function extractPack(title: string): string | null {
 
 async function addToCart(candidate: Candidate): Promise<{ ok: boolean; error?: string }> {
   if (!candidate.url) return { ok: false, error: "No URL" }
-  // Caller is responsible for navigating us to the PDP; if we're elsewhere
-  // bail rather than self-navigating (kills this script mid-call).
+  // We're considered "on the PDP" if the URL matches OR we landed
+  // somewhere on the same SKU's product family (HD sometimes adds
+  // tracking params or canonicalizes the slug). The candidate URL
+  // came from window.location.href moments ago, so an exact match
+  // is the common case; the SKU fallback covers redirects.
   if (window.location.href !== candidate.url) {
-    return { ok: false, error: "Not on PDP — driver shouldn't self-navigate" }
+    const sku = candidate.sku
+    const onSamePdp =
+      sku && new RegExp(`/p/(?:[^/]+/)?${sku}(?:[/?#]|$)`).test(window.location.pathname)
+    if (!onSamePdp) {
+      return { ok: false, error: "Not on PDP — driver shouldn't self-navigate" }
+    }
   }
   const atc = await waitFor<HTMLButtonElement>(
-    'button[data-testid="atc-button"], button[data-automation-id="addToCart"], button[aria-label*="Add to Cart" i]',
+    [
+      'button[data-testid="atc-button"]',
+      'button[data-automation-id="addToCart"]',
+      'button[data-button-action="cart"]',
+      'button[aria-label*="Add to Cart" i]',
+      'button[aria-label*="Add to cart" i]',
+    ].join(", "),
     8000,
   )
-  if (!atc) return { ok: false, error: "Add to Cart button not found" }
+  if (!atc) {
+    // Last-resort: scan all visible buttons for one whose text says
+    // "Add to Cart". HD sometimes wraps the button in a custom element
+    // with no testid.
+    const all = Array.from(document.querySelectorAll<HTMLButtonElement>("button"))
+    const byText = all.find(
+      (b) =>
+        /add to cart/i.test(b.textContent ?? "") &&
+        !b.disabled &&
+        b.offsetParent !== null, // visible
+    )
+    if (!byText) {
+      return { ok: false, error: "Add to Cart button not found" }
+    }
+    byText.click()
+    await delay(800)
+    return { ok: true }
+  }
+  if (atc.disabled) {
+    return { ok: false, error: "Add to Cart button is disabled (OOS or unavailable?)" }
+  }
   atc.click()
   await delay(800)
   return { ok: true }
@@ -366,6 +457,32 @@ async function driveMaterial(
   // navigating ourselves — navigation kills this content script mid-call.
   if (!isOnSearchPageFor(material)) {
     return { kind: "no-match", reasoning: "Driver wasn't on the search page" }
+  }
+
+  // SKU search redirects HD straight to the PDP for an exact match —
+  // in that case there's no search-result page to scrape. Detect it,
+  // build a Candidate from the PDP, and trust the SKU as the match
+  // (no need for Claude to disambiguate one product against itself).
+  if (isOnPdp()) {
+    const candidate = scrapePdp()
+    if (!candidate) {
+      return {
+        kind: "no-match",
+        reasoning: "Landed on PDP but couldn't scrape product info",
+      }
+    }
+    if (!candidate.inStock) {
+      return { kind: "oos", candidate, alternatives: null }
+    }
+    // Already on the right PDP — just click ATC. Returning matched
+    // here would make the worker re-navigate to the same URL, which
+    // both wastes a round trip and risks losing the page state.
+    const r = await addToCart(candidate)
+    if (r.ok) return { kind: "added", candidate }
+    return {
+      kind: "error",
+      message: r.error ?? "Add to Cart click failed on PDP",
+    }
   }
 
   const haveResults = await waitFor(
