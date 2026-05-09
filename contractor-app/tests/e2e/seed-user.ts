@@ -129,6 +129,55 @@ async function main() {
     },
   })
 
+  // W4 Feature 1 — a parsed catalog receipt with a mix of (a) a line that
+  // matches an existing catalog item we'll seed below, and (b) a brand-new
+  // line that has no match. Drives the catalog-receipt E2E spec.
+  const catalogItem = await prisma.catalogItem.create({
+    data: {
+      userId: TEST_USER.id,
+      trade: "drywall",
+      description: "Drywall sheet 4x8 1/2 inch",
+      unit: "sheet",
+      unitPrice: 12.5,
+      kind: "material",
+    },
+  })
+  const catalogReceipt = await prisma.receipt.create({
+    data: {
+      userId: TEST_USER.id,
+      forCatalog: true,
+      imageUrl: "https://example.invalid/catalog-receipt.jpg",
+      imagePathname: `receipts/${TEST_USER.id}/catalog.jpg`,
+      filename: "catalog-receipt.jpg",
+      size: 100_000,
+      parseStatus: "parsed",
+      vendor: "Home Depot",
+      total: 65.45,
+      items: {
+        create: [
+          // Likely match → existing drywall item, slightly different price
+          {
+            description: "Drywall sheet 4x8 1/2 in",
+            quantity: 4,
+            unit: "sheet",
+            unitPrice: 13.99,
+            lineTotal: 55.96,
+            order: 0,
+          },
+          // No match → brand new
+          {
+            description: "Stainless threaded rod 5/16 36 inch",
+            quantity: 1,
+            unit: "ea",
+            unitPrice: 9.49,
+            lineTotal: 9.49,
+            order: 1,
+          },
+        ],
+      },
+    },
+  })
+
   // Proposal-flow project (full content)
   const proposalProject = await prisma.project.create({
     data: {
@@ -195,6 +244,12 @@ async function main() {
     subs: {
       a: { id: subA.id, name: subA.name },
       b: { id: subB.id, name: subB.name },
+    },
+    catalogReceipt: {
+      receiptId: catalogReceipt.id,
+      existingCatalogItemId: catalogItem.id,
+      existingDescription: catalogItem.description,
+      existingPrice: catalogItem.unitPrice,
     },
     proposal: {
       projectId: proposalProject.id,

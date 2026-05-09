@@ -6,15 +6,18 @@ import { formatCurrency } from "@/lib/calc"
 import { AutoSaveForm } from "../../projects/[id]/auto-form"
 import {
   addReceiptItem,
+  applyCatalogUpdates,
   assignReceiptToProject,
   deleteReceipt,
   deleteReceiptItem,
+  previewCatalogUpdates,
   reparseReceipt,
   updateReceipt,
   updateReceiptItem,
 } from "../actions"
 import { ReparseButton } from "./reparse-button"
 import { AutoParseTrigger } from "./auto-parse-trigger"
+import { CatalogUpdateReview } from "./catalog-update-review"
 import { ConfirmSubmitButton } from "../../confirm-submit-button"
 import { logError } from "@/lib/log"
 
@@ -86,6 +89,18 @@ export default async function ReceiptDetailPage({
   const shouldAutoParse =
     receipt.parseStatus === "pending" && receipt.items.length === 0
 
+  // For catalog receipts, prefetch the fuzzy-match preview so the review
+  // panel renders synchronously. Falls back to an empty preview if parsing
+  // hasn't completed yet — the review component handles the empty case.
+  const catalogPreview = receipt.forCatalog
+    ? receipt.items.length > 0
+      ? await previewCatalogUpdates(receipt.id).catch((e) => {
+          logError("/receipts/[id]/preview", e, { receiptId: receipt.id })
+          return null
+        })
+      : null
+    : null
+
   return (
     <div className="space-y-6">
       <div>
@@ -96,13 +111,20 @@ export default async function ReceiptDetailPage({
           <h1 className="text-xl font-bold text-foreground">
             {receipt.vendor ?? receipt.filename}
           </h1>
-          <span
-            className={`text-[10px] font-medium px-2 py-0.5 rounded-full uppercase tracking-wider ${
-              STATUS_BADGE[receipt.parseStatus] ?? STATUS_BADGE.pending
-            }`}
-          >
-            {receipt.parseStatus}
-          </span>
+          <div className="flex items-center gap-2">
+            {receipt.forCatalog && (
+              <span className="text-[10px] font-medium px-2 py-0.5 rounded-full uppercase tracking-wider bg-accent-soft text-foreground border border-accent/30">
+                Catalog
+              </span>
+            )}
+            <span
+              className={`text-[10px] font-medium px-2 py-0.5 rounded-full uppercase tracking-wider ${
+                STATUS_BADGE[receipt.parseStatus] ?? STATUS_BADGE.pending
+              }`}
+            >
+              {receipt.parseStatus}
+            </span>
+          </div>
         </div>
       </div>
 
@@ -240,6 +262,23 @@ export default async function ReceiptDetailPage({
             </AutoSaveForm>
           </div>
 
+          {receipt.forCatalog && catalogPreview && (
+            <CatalogUpdateReview
+              preview={catalogPreview}
+              alreadyReviewed={!!receipt.catalogReviewedAt}
+              applyAction={applyCatalogUpdates.bind(null, receipt.id)}
+            />
+          )}
+          {receipt.forCatalog && !catalogPreview && receipt.items.length === 0 && (
+            <div className="bg-surface border border-border rounded-lg p-5 text-sm text-foreground-soft italic">
+              Waiting for AI to parse this receipt before showing catalog
+              updates… If this stays here for more than 30 seconds, click
+              &ldquo;Re-parse with AI&rdquo; on the left.
+            </div>
+          )}
+
+          {!receipt.forCatalog && (
+          <>
           {/* Project assignment */}
           <div className="bg-surface border border-border rounded-lg p-5">
             <p className="text-xs font-medium text-foreground-muted mb-2">Assign to project</p>
@@ -431,6 +470,8 @@ export default async function ReceiptDetailPage({
               </div>
             </form>
           </div>
+          </>
+          )}
 
           <form action={deleteReceipt.bind(null, receipt.id)} className="flex justify-end">
             <ConfirmSubmitButton

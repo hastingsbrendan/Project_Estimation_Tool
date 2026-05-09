@@ -33,6 +33,10 @@ export function UploadReceiptButton({
     originalSize: number
     compressedSize: number | null
   } | null>(null)
+  // forCatalog flag: when true, the upload routes to the catalog-update
+  // review flow instead of attaching to a project. Mutually exclusive
+  // with the project picker (we hide it when this is on).
+  const [forCatalog, setForCatalog] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
   const formRef = useRef<HTMLFormElement>(null)
 
@@ -44,6 +48,7 @@ export function UploadReceiptButton({
     setError("")
     setPicked(null)
     setBusy(null)
+    setForCatalog(false)
     fileRef.current && (fileRef.current.value = "")
   }
 
@@ -183,6 +188,27 @@ export function UploadReceiptButton({
                 )}
               </div>
 
+              <label className="flex items-start gap-2 text-xs text-foreground cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  name="forCatalog"
+                  value="1"
+                  checked={forCatalog}
+                  onChange={(e) => setForCatalog(e.target.checked)}
+                  className="mt-0.5 accent-accent shrink-0"
+                />
+                <span>
+                  This is for catalog updates, not a project.
+                  {forCatalog && (
+                    <span className="block text-[11px] text-foreground-soft mt-0.5">
+                      We&rsquo;ll parse line items and ask which prices to apply
+                      / which new items to add to your catalog.
+                    </span>
+                  )}
+                </span>
+              </label>
+
+              {!forCatalog && (
               <div>
                 <label className="block text-xs font-medium text-foreground-muted mb-1">
                   Assign to project (optional)
@@ -200,6 +226,7 @@ export function UploadReceiptButton({
                   ))}
                 </select>
               </div>
+              )}
 
               {error && (
                 <p

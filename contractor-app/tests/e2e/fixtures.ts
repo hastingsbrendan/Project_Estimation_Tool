@@ -21,6 +21,12 @@ type Fixtures = {
     a: { id: string; name: string }
     b: { id: string; name: string }
   }
+  catalogReceipt: {
+    receiptId: string
+    existingCatalogItemId: string
+    existingDescription: string
+    existingPrice: number
+  }
 }
 
 let cached: Fixtures | null = null

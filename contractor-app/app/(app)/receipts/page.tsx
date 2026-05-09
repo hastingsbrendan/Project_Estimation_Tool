@@ -18,15 +18,29 @@ const STATUS_BADGE: Record<string, string> = {
   error: "bg-red-50 text-red-700",
 }
 
-export default async function ReceiptsPage() {
+export default async function ReceiptsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ filter?: string }>
+}) {
+  const params = await searchParams
+  const filter = params.filter === "catalog" ? "catalog" : params.filter === "projects" ? "projects" : "all"
+
   const session = await auth()
   if (!session?.user?.email) redirect("/login")
   const user = await prisma.user.findUnique({ where: { email: session.user.email } })
   if (!user) redirect("/login")
 
+  const filterWhere =
+    filter === "catalog"
+      ? { forCatalog: true }
+      : filter === "projects"
+        ? { forCatalog: false }
+        : {}
+
   const [receipts, projects] = await Promise.all([
     prisma.receipt.findMany({
-      where: { userId: user.id },
+      where: { userId: user.id, ...filterWhere },
       orderBy: { createdAt: "desc" },
       include: { project: { select: { name: true } } },
     }),
@@ -51,6 +65,26 @@ export default async function ReceiptsPage() {
           projects={projects.map((p) => ({ id: p.id, name: p.name }))}
           uploadAction={uploadReceipt}
         />
+      </div>
+
+      <div className="flex items-center gap-2 text-xs">
+        {([
+          ["all", "All"],
+          ["projects", "Projects"],
+          ["catalog", "Catalog"],
+        ] as const).map(([k, label]) => (
+          <Link
+            key={k}
+            href={k === "all" ? "/receipts" : `/receipts?filter=${k}`}
+            className={`px-2.5 py-1 rounded-full ${
+              filter === k
+                ? "bg-accent text-white"
+                : "bg-surface border border-border text-foreground-muted hover:bg-accent-soft"
+            }`}
+          >
+            {label}
+          </Link>
+        ))}
       </div>
 
       {receipts.length === 0 ? (
@@ -90,6 +124,11 @@ export default async function ReceiptsPage() {
                     <p className="font-medium text-foreground truncate">
                       {r.vendor ?? r.filename}
                     </p>
+                    {r.forCatalog && (
+                      <span className="text-[10px] font-medium px-2 py-0.5 rounded-full uppercase tracking-wider bg-accent-soft text-foreground border border-accent/30">
+                        Catalog
+                      </span>
+                    )}
                     <span
                       className={`text-[10px] font-medium px-2 py-0.5 rounded-full uppercase tracking-wider ${
                         STATUS_BADGE[r.parseStatus] ?? STATUS_BADGE.pending
@@ -110,7 +149,13 @@ export default async function ReceiptsPage() {
                           month: "short",
                           day: "numeric",
                         })}
-                    {r.project ? ` · ${r.project.name}` : " · Unassigned"}
+                    {r.forCatalog
+                      ? r.catalogReviewedAt
+                        ? " · Catalog updated"
+                        : " · Catalog review pending"
+                      : r.project
+                        ? ` · ${r.project.name}`
+                        : " · Unassigned"}
                   </p>
                 </div>
                 <div className="ml-2 text-right shrink-0">

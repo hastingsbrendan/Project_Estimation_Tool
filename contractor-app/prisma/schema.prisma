@@ -123,6 +123,12 @@ model Receipt {
   parseError    String? // surfaced to the user if Claude parsing failed
   parseRawJson  String? // raw model output for debugging
   notes         String?
+  // W4 Feature 1 — catalog-update receipts. When true, parsed items
+  // route to a CatalogUpdateReview flow instead of attaching to a project's
+  // actuals. catalogReviewedAt is set when the contractor finishes the
+  // bulk-apply review; null = pending review.
+  forCatalog        Boolean   @default(false)
+  catalogReviewedAt DateTime?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 

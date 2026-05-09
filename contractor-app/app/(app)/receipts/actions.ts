@@ -55,7 +55,13 @@ export async function uploadReceipt(
       }
     }
 
-    const projectId = String(formData.get("projectId") ?? "").trim() || null
+    // forCatalog routes the parsed items to the CatalogUpdateReview flow
+    // instead of attaching to a project. Mutually exclusive with project
+    // assignment — if both are sent, forCatalog wins (we ignore projectId).
+    const forCatalog = String(formData.get("forCatalog") ?? "") === "1"
+    const projectId = forCatalog
+      ? null
+      : String(formData.get("projectId") ?? "").trim() || null
     if (projectId) {
       const project = await prisma.project.findFirst({
         where: { id: projectId, userId },
@@ -81,6 +87,7 @@ export async function uploadReceipt(
         filename: file.name,
         size: file.size,
         parseStatus: "pending",
+        forCatalog,
       },
     })
 
@@ -90,6 +97,7 @@ export async function uploadReceipt(
       userId,
       receiptId: receipt.id,
       projectId,
+      forCatalog,
       filename: receipt.filename,
       sizeBytes: receipt.size,
       durationMs: Date.now() - started,
@@ -334,4 +342,250 @@ export async function deleteReceiptItem(
   // different receipt — even if the form was tampered with.
   await prisma.receiptItem.deleteMany({ where: { id: itemId, receiptId } })
   revalidatePath(`/receipts/${receiptId}`)
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// W4 Feature 1 — catalog-update receipts
+// previewCatalogUpdates fuzzy-matches the receipt's parsed items against
+// the user's catalog so the UI can render three buckets (likely / uncertain
+// / new). applyCatalogUpdates atomically applies the contractor's per-row
+// decisions: update prices on existing rows, insert new rows, skip the rest.
+
+import {
+  scoreAgainstCatalog,
+  bucketize,
+  type FuzzyCandidate,
+} from "@/lib/catalog/fuzzy-match"
+
+const ALLOWED_TRADES = [
+  "demo",
+  "framing",
+  "plumbing",
+  "electrical",
+  "drywall",
+  "finish",
+] as const
+
+type Trade = (typeof ALLOWED_TRADES)[number]
+
+function pickTrade(v: string | null | undefined): Trade {
+  const s = String(v ?? "").trim().toLowerCase()
+  return (ALLOWED_TRADES as readonly string[]).includes(s)
+    ? (s as Trade)
+    : "finish"
+}
+
+export type CatalogUpdatePreview = {
+  receiptId: string
+  matches: Array<{
+    receiptItemId: string
+    catalogItemId: string
+    description: string
+    unit: string
+    currentPrice: number
+    newPrice: number
+    deltaPct: number
+    confidence: number
+  }>
+  uncertain: Array<{
+    receiptItemId: string
+    description: string
+    unit: string
+    parsedPrice: number
+    candidates: Array<{
+      catalogItemId: string
+      description: string
+      unit: string
+      score: number
+    }>
+  }>
+  newItems: Array<{
+    receiptItemId: string
+    description: string
+    unit: string
+    suggestedTrade: Trade
+    suggestedPrice: number
+  }>
+}
+
+/**
+ * Read-only preview: scores every parsed receipt item against the user's
+ * catalog and bucketizes by confidence. The action layer doesn't write
+ * anything — that's applyCatalogUpdates' job.
+ */
+export async function previewCatalogUpdates(
+  receiptId: string,
+): Promise<CatalogUpdatePreview> {
+  const { receipt, userId } = await requireReceipt(receiptId)
+
+  const [items, catalog] = await Promise.all([
+    prisma.receiptItem.findMany({
+      where: { receiptId },
+      orderBy: { order: "asc" },
+    }),
+    prisma.catalogItem.findMany({
+      where: { userId, archived: false },
+      select: { id: true, description: true, unit: true, unitPrice: true, trade: true },
+    }),
+  ])
+
+  void receipt // touched to confirm ownership
+
+  const candidates: FuzzyCandidate[] = catalog.map((c) => ({
+    id: c.id,
+    description: c.description,
+    unit: c.unit,
+  }))
+  const catalogById = new Map(catalog.map((c) => [c.id, c]))
+
+  const preview: CatalogUpdatePreview = {
+    receiptId,
+    matches: [],
+    uncertain: [],
+    newItems: [],
+  }
+
+  for (const item of items) {
+    const itemPrice =
+      item.lineTotal != null && item.quantity > 0
+        ? item.lineTotal / item.quantity
+        : item.unitPrice
+    const scores = scoreAgainstCatalog(
+      { description: item.description, unit: item.unit },
+      candidates,
+    )
+    const top = scores[0]
+    const bucket = top ? bucketize(top.score) : "new"
+
+    if (bucket === "likely" && top) {
+      const cat = catalogById.get(top.candidateId)!
+      const deltaPct =
+        cat.unitPrice > 0 ? ((itemPrice - cat.unitPrice) / cat.unitPrice) * 100 : 0
+      preview.matches.push({
+        receiptItemId: item.id,
+        catalogItemId: cat.id,
+        description: item.description,
+        unit: item.unit,
+        currentPrice: cat.unitPrice,
+        newPrice: itemPrice,
+        deltaPct,
+        confidence: top.score,
+      })
+    } else if (bucket === "uncertain") {
+      preview.uncertain.push({
+        receiptItemId: item.id,
+        description: item.description,
+        unit: item.unit,
+        parsedPrice: itemPrice,
+        candidates: scores
+          .filter((s) => s.score >= 0.3)
+          .slice(0, 5)
+          .map((s) => {
+            const c = catalogById.get(s.candidateId)!
+            return {
+              catalogItemId: c.id,
+              description: c.description,
+              unit: c.unit,
+              score: s.score,
+            }
+          }),
+      })
+    } else {
+      // No reasonable match — candidate for a brand-new catalog row.
+      preview.newItems.push({
+        receiptItemId: item.id,
+        description: item.description,
+        unit: item.unit,
+        suggestedTrade: "finish",
+        suggestedPrice: itemPrice,
+      })
+    }
+  }
+
+  return preview
+}
+
+/**
+ * Atomically apply per-row decisions from the review UI. Writes are
+ * scoped to the user (catalog ownership) and the receipt is marked
+ * reviewed at the end.
+ */
+export type CatalogUpdateDecision =
+  | {
+      action: "update-price"
+      receiptItemId: string
+      catalogItemId: string
+      newPrice: number
+    }
+  | {
+      action: "add-new"
+      receiptItemId: string
+      description: string
+      unit: string
+      trade: string
+      price: number
+    }
+  | { action: "skip"; receiptItemId: string }
+
+export async function applyCatalogUpdates(
+  receiptId: string,
+  decisions: CatalogUpdateDecision[],
+): Promise<{ ok: boolean; updatedCount: number; createdCount: number; error?: string }> {
+  const { userId } = await requireReceipt(receiptId)
+
+  let updatedCount = 0
+  let createdCount = 0
+  try {
+    await prisma.$transaction(async (tx) => {
+      for (const d of decisions) {
+        if (d.action === "update-price") {
+          // Scope on userId so a tampered catalogItemId can't write to
+          // another user's catalog.
+          const result = await tx.catalogItem.updateMany({
+            where: { id: d.catalogItemId, userId, archived: false },
+            data: { unitPrice: Math.max(0, d.newPrice) },
+          })
+          if (result.count > 0) updatedCount += result.count
+        } else if (d.action === "add-new") {
+          await tx.catalogItem.create({
+            data: {
+              userId,
+              trade: pickTrade(d.trade),
+              description: d.description.trim() || "Untitled item",
+              unit: (d.unit || "ea").trim() || "ea",
+              unitPrice: Math.max(0, d.price),
+              kind: "material",
+            },
+          })
+          createdCount++
+        }
+        // skip → no write
+      }
+      await tx.receipt.updateMany({
+        where: { id: receiptId, userId },
+        data: { catalogReviewedAt: new Date() },
+      })
+    })
+  } catch (e) {
+    logError("applyCatalogUpdates", e, { receiptId, userId })
+    return {
+      ok: false,
+      updatedCount,
+      createdCount,
+      error: e instanceof Error ? e.message : "Failed",
+    }
+  }
+
+  revalidatePath(`/receipts/${receiptId}`)
+  revalidatePath("/receipts")
+  revalidatePath("/catalog/services")
+  revalidatePath("/catalog/materials")
+  logInfo("applyCatalogUpdates", "Applied catalog updates", {
+    receiptId,
+    userId,
+    updatedCount,
+    createdCount,
+    skipped: decisions.filter((d) => d.action === "skip").length,
+  })
+  return { ok: true, updatedCount, createdCount }
 }
