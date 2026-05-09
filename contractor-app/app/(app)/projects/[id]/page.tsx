@@ -822,7 +822,7 @@ function RoomCard({
       >
         <button
           type="submit"
-          className="text-[11px] text-foreground-soft hover:text-danger transition-colors"
+          className="text-xs text-foreground-soft hover:text-danger transition-colors"
         >
           Remove room
         </button>

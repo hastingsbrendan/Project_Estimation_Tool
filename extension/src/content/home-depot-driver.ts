@@ -21,6 +21,12 @@
  */
 
 import type { Candidate, Material, RunItem, RunItemStatus } from "../shared/types"
+import {
+  parsePrice,
+  extractPack,
+  searchUrlFor,
+  isPdpUrl,
+} from "../shared/parsing"
 
 // ─────────────────────────────────────────────────────────────────────────
 // Side panel — shadow DOM overlay
@@ -214,23 +220,6 @@ function setItemStatus(idx: number, status: RunItemStatus) {
 // HD DOM scraping
 // ─────────────────────────────────────────────────────────────────────────
 
-const SEARCH_URL = (q: string) =>
-  `https://www.homedepot.com/s/${encodeURIComponent(q)}`
-
-/**
- * Pick a search URL for a material:
- *   - if the contractor saved an HD SKU, search by SKU. HD's search
- *     redirects to the exact PDP for an exact SKU match — much more
- *     reliable than description fuzzy matching.
- *   - otherwise fall back to the description.
- */
-function searchUrlFor(material: Material): string {
-  if (material.hdSku && material.hdSku.trim()) {
-    return SEARCH_URL(material.hdSku.trim())
-  }
-  return SEARCH_URL(material.description)
-}
-
 function isOnSearchPageFor(material: Material): boolean {
   const target = searchUrlFor(material).split("?")[0]!
   // SKU search often redirects to a /p/ PDP URL — accept either.
@@ -245,14 +234,8 @@ function isOnSearchPageFor(material: Material): boolean {
   return false
 }
 
-/**
- * HD Product Detail Pages live at /p/<slug>/<id> URLs. SKU searches
- * frequently redirect straight to a PDP, in which case there are no
- * search-result cards to scrape — we have to read the product info
- * off the PDP itself.
- */
 function isOnPdp(): boolean {
-  return /\/p\/[^/]+\/\d+/.test(window.location.pathname)
+  return isPdpUrl(window.location.pathname)
 }
 
 /**
@@ -481,20 +464,6 @@ function scrapeSearchResults(limit = 5): Candidate[] {
   return out
 }
 
-function parsePrice(s: string): number | null {
-  if (!s) return null
-  const m = s.match(/\$?\s*(\d[\d,]*\.?\d*)/)
-  if (!m) return null
-  const n = Number(m[1]?.replace(/,/g, "") ?? "")
-  return Number.isFinite(n) ? n : null
-}
-
-function extractPack(title: string): string | null {
-  const m = title.match(
-    /\(?\s*(pack of \d+|\d+\s*[-]?\s*pack|\d+\s*pk\b|\d+\s*ct\b|\d+\s*lb\b|\d+\s*oz\b|\d+\s*gal\b)\s*\)?/i,
-  )
-  return m?.[1]?.trim() ?? null
-}
 
 // ─────────────────────────────────────────────────────────────────────────
 // Cart manipulation (PDP)

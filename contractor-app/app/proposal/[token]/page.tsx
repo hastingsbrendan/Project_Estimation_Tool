@@ -80,7 +80,7 @@ export default async function PublicProposalPage({
             <div className="text-sm font-bold tracking-widest text-foreground">
               {contractor.businessName.toUpperCase()}
             </div>
-            <div className="text-[11px] text-foreground-soft mt-0.5 leading-snug">
+            <div className="text-xs text-foreground-soft mt-0.5 leading-snug">
               {contractor.address && <div>{contractor.address}</div>}
               {(contractor.phone || contractor.email) && (
                 <div>

@@ -239,7 +239,7 @@ export function ProjectSubsSection({
                     <p className="text-xs text-foreground-muted mt-0.5">
                       {a.scope ?? "No scope set"}
                     </p>
-                    <p className="text-[11px] text-foreground-soft mt-0.5 capitalize">
+                    <p className="text-xs text-foreground-soft mt-0.5 capitalize">
                       Status: <strong>{a.status}</strong>
                       {a.agreedAmount != null && (
                         <>

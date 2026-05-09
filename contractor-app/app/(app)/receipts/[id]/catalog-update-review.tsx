@@ -322,7 +322,7 @@ export function CatalogUpdateReview({
                     </td>
                     <td className="px-3 py-2">
                       <div className="text-foreground">{r.description}</div>
-                      <div className="text-[11px] text-foreground-soft">
+                      <div className="text-xs text-foreground-soft">
                         per {r.unit}
                       </div>
                       <SkuRow
@@ -388,7 +388,7 @@ export function CatalogUpdateReview({
                   <div className="flex items-baseline justify-between gap-3 flex-wrap">
                     <div className="min-w-0">
                       <p className="text-sm text-foreground">{r.description}</p>
-                      <p className="text-[11px] text-foreground-soft">
+                      <p className="text-xs text-foreground-soft">
                         per {r.unit} · parsed at ${r.parsedPrice.toFixed(2)}
                         {r.receiptSku ? (
                           <>

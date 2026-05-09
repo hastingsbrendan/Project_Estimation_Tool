@@ -114,7 +114,7 @@ export default async function MaterialsPage({
             {rows.map((r, i) => (
               <div key={i} className="grid grid-cols-12 gap-2 px-4 py-2.5 text-sm items-baseline">
                 <div className="col-span-12 sm:col-span-5 text-foreground">{r.description}</div>
-                <div className="col-span-6 sm:col-span-1 text-[11px] tabular-nums">
+                <div className="col-span-6 sm:col-span-1 text-xs tabular-nums">
                   {r.hdSku ? (
                     <a
                       href={`https://www.homedepot.com/s/${encodeURIComponent(r.hdSku)}`}

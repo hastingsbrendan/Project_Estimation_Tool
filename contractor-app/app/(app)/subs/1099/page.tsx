@@ -143,7 +143,7 @@ export default async function ThousandNinetyNinePage({
           <p>
             <strong>SUBCONTRACTOR_PII_KEY is not set.</strong> Tax ID encryption
             is disabled, so 1099 generation is blocked. Generate a key with{" "}
-            <code className="bg-white px-1 py-0.5 rounded text-[11px] font-mono">
+            <code className="bg-white px-1 py-0.5 rounded text-xs font-mono">
               node -e
               &quot;console.log(require(&apos;crypto&apos;).randomBytes(32).toString(&apos;base64&apos;))&quot;
             </code>{" "}

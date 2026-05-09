@@ -169,7 +169,7 @@ export default async function SubsListPage({
                     </span>
                   </div>
                   {missingTaxId && (
-                    <p className="mt-2 text-[11px] text-danger">
+                    <p className="mt-2 text-xs text-danger">
                       ⚠ Over $600 — tax ID required for 1099
                     </p>
                   )}

@@ -64,7 +64,7 @@ export function TaxIdField({
           required
           className="w-full text-sm font-mono text-foreground border border-border rounded px-3 py-2 bg-surface focus:outline-none focus:ring-2 focus:ring-accent tabular-nums"
         />
-        <p className="text-[11px] text-foreground-soft">
+        <p className="text-xs text-foreground-soft">
           Stored encrypted (AES-256-GCM). Only last 4 digits ever shown without
           a deliberate decrypt — used for 1099 generation.
         </p>

@@ -13,6 +13,7 @@ import {
   type FuzzyCandidate,
 } from "@/lib/catalog/fuzzy-match"
 import { parseTradeSlug, type TradeSlug } from "@/lib/catalog/trades"
+import { decideHdSkuWrite } from "@/lib/catalog/sku-guardrail"
 
 const MAX_BYTES = 20 * 1024 * 1024 // 20 MB. Client compresses big images first.
 const ALLOWED_TYPES = new Set([
@@ -576,17 +577,20 @@ export async function applyCatalogUpdates(
           const data: { unitPrice: number; hdSku?: string } = {
             unitPrice: Math.max(0, d.newPrice),
           }
-          // Only write hdSku when the caller asked AND the catalog row
-          // currently has no SKU. This avoids silently clobbering a
-          // user-entered SKU with one parsed off a faded receipt; the
-          // review UI surfaces conflicts before we get here.
+          // SKU guardrail: never silently overwrite an existing
+          // catalog SKU with a different one. Pure helper so we can
+          // unit-test the decision matrix without a DB.
           if (d.hdSku && d.hdSku.trim()) {
             const existing = await tx.catalogItem.findFirst({
               where: { id: d.catalogItemId, userId, archived: false },
               select: { hdSku: true },
             })
-            if (existing && (!existing.hdSku || existing.hdSku === d.hdSku.trim())) {
-              data.hdSku = d.hdSku.trim()
+            if (existing) {
+              const decided = decideHdSkuWrite({
+                existing: existing.hdSku,
+                requested: d.hdSku,
+              })
+              if (decided !== undefined) data.hdSku = decided
             }
           }
           const result = await tx.catalogItem.updateMany({

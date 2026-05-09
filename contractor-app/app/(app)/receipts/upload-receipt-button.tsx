@@ -200,7 +200,7 @@ export function UploadReceiptButton({
                 <span>
                   This is for catalog updates, not a project.
                   {forCatalog && (
-                    <span className="block text-[11px] text-foreground-soft mt-0.5">
+                    <span className="block text-xs text-foreground-soft mt-0.5">
                       We&rsquo;ll parse line items and ask which prices to apply
                       / which new items to add to your catalog.
                     </span>

@@ -242,7 +242,7 @@ export default async function SubcontractorDetailPage({
                           {a.scope}
                         </p>
                       )}
-                      <p className="text-[11px] text-foreground-soft mt-0.5">
+                      <p className="text-xs text-foreground-soft mt-0.5">
                         Status: {a.status}
                         {a.startDate && ` · started ${a.startDate.toLocaleDateString("en-US")}`}
                       </p>
