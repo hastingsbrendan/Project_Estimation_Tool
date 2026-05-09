@@ -260,6 +260,11 @@ function isOnPdp(): boolean {
  * search redirected us straight to a product page — we trust the
  * SKU match and skip the Claude matcher (which is for ranking
  * search-result candidates, not for confirming exact SKU hits).
+ *
+ * Stock is determined by the Add-to-Cart button — the only ground
+ * truth on a PDP. Scanning body text for "out of stock" gives false
+ * positives because HD includes that phrase in size-variant chips,
+ * notify-me widgets, live chat, and footers.
  */
 function scrapePdp(): Candidate | null {
   const titleEl = document.querySelector<HTMLElement>(
@@ -277,12 +282,7 @@ function scrapePdp(): Candidate | null {
   )
   const price = parsePrice(priceEl?.textContent ?? "")
 
-  // Stock: HD shows variants of "Out of Stock", "Unavailable",
-  // "Limited stock for pickup". We're conservative — only flag OOS
-  // when we see the explicit "out of stock" text; everything else
-  // we treat as buyable and let the ATC click decide.
-  const bodyText = document.body.textContent?.toLowerCase() ?? ""
-  const inStock = !/out of stock\b/i.test(bodyText)
+  const inStock = pdpAppearsInStock()
 
   const brandEl = document.querySelector<HTMLElement>(
     '[data-testid*="brand"], .product-details__brand-name, .product-details__manufacturer',
@@ -300,6 +300,57 @@ function scrapePdp(): Candidate | null {
     brand,
     pack,
   }
+}
+
+/**
+ * Stock detection on a PDP. Ground truth = the Add-to-Cart button:
+ *   - present and not disabled    → in stock
+ *   - missing entirely             → check for explicit OOS markers
+ *   - present but disabled         → out of stock
+ *
+ * The presence/absence of the strings "out of stock" or "sold out"
+ * elsewhere in body text is too noisy to use (HD's PDP includes
+ * those phrases in alt-size chips and notify-me widgets even when
+ * the actual product is in stock).
+ */
+function pdpAppearsInStock(): boolean {
+  const atc = document.querySelector<HTMLButtonElement>(
+    [
+      'button[data-testid="atc-button"]',
+      'button[data-automation-id="addToCart"]',
+      'button[data-button-action="cart"]',
+      'button[aria-label*="Add to Cart" i]',
+      'button[aria-label*="Add to cart" i]',
+    ].join(", "),
+  )
+  if (atc) {
+    return !atc.disabled
+  }
+  // No ATC button found yet — could be either still loading or truly
+  // OOS. Look for explicit OOS badges only in known fulfillment areas
+  // rather than anywhere on the page.
+  const oosBadge = document.querySelector(
+    [
+      '[data-testid="oos-badge"]',
+      '[data-testid*="out-of-stock"]',
+      '[data-testid*="unavailable"]',
+      '[class*="oos-message"]',
+      '[class*="OutOfStock"]',
+    ].join(", "),
+  )
+  if (oosBadge) return false
+  // Last-resort text scan, but only inside fulfillment / pricing
+  // sections so we don't false-match unrelated copy.
+  const sections = document.querySelectorAll<HTMLElement>(
+    '[data-testid*="fulfillment"], [data-component*="Fulfillment"], [class*="fulfillment"], [data-component*="Buybox"], [class*="buybox"]',
+  )
+  for (const s of sections) {
+    if (/\bsold out\b|\bout of stock\b|\bunavailable\b/i.test(s.textContent ?? "")) {
+      return false
+    }
+  }
+  // Default to in-stock; the ATC click attempt is the final arbiter.
+  return true
 }
 
 function waitFor<T extends Element = Element>(
@@ -332,12 +383,63 @@ function delay(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms))
 }
 
+/**
+ * Scrape candidate products from a search-results page.
+ *
+ * Strategy: rather than depending on HD's churning testid/class names
+ * for the card container, find anchors pointing at PDP URLs (which
+ * follow a stable `/p/<slug>/<id>` shape) and walk up to the nearest
+ * card-like ancestor. Falls back to the old testid-based query first
+ * for the cases where it still works.
+ */
 function scrapeSearchResults(limit = 5): Candidate[] {
-  const cards = Array.from(
-    document.querySelectorAll<HTMLElement>(
-      '[data-testid="product-pod"], [class*="product-pod"]',
-    ),
-  ).slice(0, limit)
+  // 1) Try the old selector-based path first.
+  const containerSelectors = [
+    '[data-testid="product-pod"]',
+    '[data-component="ProductPod"]',
+    '[data-testid="productPod"]',
+    '[class*="product-pod"]',
+    '[class*="ProductPod"]',
+    "article[data-component]",
+  ]
+  let cards = Array.from(
+    document.querySelectorAll<HTMLElement>(containerSelectors.join(", ")),
+  )
+
+  // 2) Fallback: find PDP-link anchors and walk up to their card.
+  if (cards.length === 0) {
+    const anchors = Array.from(
+      document.querySelectorAll<HTMLAnchorElement>("a[href*='/p/']"),
+    ).filter((a) => /\/p\/[^/]+\/\d+/.test(a.getAttribute("href") ?? ""))
+    const seen = new Set<HTMLElement>()
+    for (const a of anchors) {
+      // Walk up looking for an ancestor that contains both this link
+      // AND a price-ish element. Cap depth so we don't grab the whole
+      // results grid.
+      let node: HTMLElement | null = a.parentElement
+      for (let depth = 0; depth < 6 && node; depth++) {
+        const hasPrice = node.querySelector(
+          '[data-testid*="price"], [class*="price-format"], [class*="price__"]',
+        )
+        if (hasPrice) {
+          if (!seen.has(node)) {
+            seen.add(node)
+            cards.push(node)
+          }
+          break
+        }
+        node = node.parentElement
+      }
+    }
+  }
+
+  cards = cards.slice(0, limit)
+
+  if (cards.length === 0) {
+    console.log("[cart-builder] scrapeSearchResults found 0 cards", {
+      url: window.location.href,
+    })
+  }
 
   const out: Candidate[] = []
   for (const card of cards) {
@@ -352,12 +454,20 @@ function scrapeSearchResults(limit = 5): Candidate[] {
     const sku = skuMatch?.[1] ?? ""
 
     const priceEl = card.querySelector<HTMLElement>(
-      '[data-testid="product-pod--price"], [class*="price-format__main-price"], [class*="price__dollars"]',
+      '[data-testid="product-pod--price"], [data-testid*="price"], [class*="price-format__main-price"], [class*="price__dollars"]',
     )
     const price = parsePrice(priceEl?.textContent ?? "")
 
-    const oosText = card.textContent?.toLowerCase() ?? ""
-    const inStock = !/out of stock/i.test(oosText)
+    // OOS detection on a card: look for explicit badges, not body text.
+    const oosBadge = card.querySelector(
+      [
+        '[data-testid*="out-of-stock"]',
+        '[data-testid*="unavailable"]',
+        '[class*="oos"]',
+        '[class*="OutOfStock"]',
+      ].join(", "),
+    )
+    const inStock = !oosBadge
 
     const brandEl = card.querySelector<HTMLElement>(
       '[data-testid*="brand"], [class*="brand"]',
@@ -485,14 +595,15 @@ async function driveMaterial(
     }
   }
 
-  const haveResults = await waitFor(
-    '[data-testid="product-pod"], [class*="product-pod"]',
-    10_000,
-  )
+  // Wait for ANY product link to appear on a search page. PDP URLs
+  // (/p/<slug>/<id>) are HD's stable permalink contract — far more
+  // reliable than waiting for a specific testid that they rotate.
+  const haveResults = await waitFor("a[href*='/p/']", 10_000)
   if (!haveResults) {
     return { kind: "no-match", reasoning: "No search results loaded" }
   }
-  await delay(400)
+  // Give the grid a beat to fully populate after the first card appears.
+  await delay(600)
 
   const candidates = scrapeSearchResults(5)
   if (candidates.length === 0) {
