@@ -41,3 +41,17 @@ export async function requireReceipt(receiptId: string) {
   if (!receipt) throw new Error("Receipt not found")
   return { receipt, userId }
 }
+
+/**
+ * Resolve a subcontractor the current user owns. Same shape as
+ * requireProject / requireReceipt. Tax-id ciphertext is included in the
+ * returned row — caller decides whether to call decrypt() on it.
+ */
+export async function requireSubcontractor(subcontractorId: string) {
+  const userId = await requireUserId()
+  const subcontractor = await prisma.subcontractor.findFirst({
+    where: { id: subcontractorId, userId },
+  })
+  if (!subcontractor) throw new Error("Subcontractor not found")
+  return { subcontractor, userId }
+}

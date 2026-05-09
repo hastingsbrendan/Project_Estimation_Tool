@@ -17,11 +17,13 @@ model User {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  accounts     Account[]
-  sessions     Session[]
-  projects     Project[]
-  catalogItems CatalogItem[]
-  receipts     Receipt[]
+  accounts       Account[]
+  sessions       Session[]
+  projects       Project[]
+  catalogItems   CatalogItem[]
+  receipts       Receipt[]
+  subcontractors Subcontractor[]
+  specialties    Specialty[]
 }
 
 model Account {
@@ -89,11 +91,14 @@ model Project {
   updatedAt       DateTime  @updatedAt
   userId          String
 
-  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  sections Section[]
-  rooms    Room[]
-  photos   Photo[]
-  receipts Receipt[]
+  user                 User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sections             Section[]
+  rooms                Room[]
+  photos               Photo[]
+  receipts             Receipt[]
+  subcontractors       ProjectSubcontractor[]
+  subcontractorRatings SubcontractorRating[]
+  subcontractorPayments SubcontractorPayment[]
 
   @@index([userId])
 }
@@ -255,4 +260,124 @@ model CatalogPreset {
   @@unique([serviceId, materialId])
   @@index([serviceId])
   @@index([materialId])
+}
+
+/// Subcontractor — a person or business the contractor hires for trade work.
+/// Tax ID is encrypted at rest (lib/crypto/secret-box.ts) using
+/// SUBCONTRACTOR_PII_KEY. Last4 is stored plaintext so the UI can show
+/// `•••• 1234` without decrypting.
+model Subcontractor {
+  id             String   @id @default(cuid())
+  userId         String
+  name           String // "Jose Hernandez Plumbing"
+  contactName    String? // primary contact at the business
+  email          String?
+  phone          String?
+  address        String?
+  taxIdEncrypted String? // EIN or SSN, ciphertext
+  taxIdLast4     String? // last 4 in plaintext for masked display
+  isCorporation  Boolean  @default(false) // affects 1099-NEC requirement
+  notes          String? // free-form ("does great trim, slow on punchlist")
+  archived       Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user        User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  specialties SubcontractorSpecialty[]
+  ratings     SubcontractorRating[]
+  assignments ProjectSubcontractor[]
+  payments    SubcontractorPayment[]
+
+  @@index([userId])
+  @@index([archived])
+}
+
+/// Predefined specialty taxonomy. Bootstrap with 12 trades; users can add
+/// custom ones (userId set). Default rows have userId=null and isDefault=true.
+model Specialty {
+  id        String  @id @default(cuid())
+  slug      String  @unique // "plumbing", "electrical"
+  label     String  // "Plumbing", "Electrical"
+  isDefault Boolean @default(false)
+  userId    String? // null when default
+
+  user           User?                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subcontractors SubcontractorSpecialty[]
+
+  @@index([userId])
+}
+
+model SubcontractorSpecialty {
+  subcontractorId String
+  specialtyId     String
+
+  subcontractor Subcontractor @relation(fields: [subcontractorId], references: [id], onDelete: Cascade)
+  specialty     Specialty     @relation(fields: [specialtyId], references: [id], onDelete: Cascade)
+
+  @@id([subcontractorId, specialtyId])
+  @@index([specialtyId])
+}
+
+/// A sub working on a specific project. Captures the agreed-upon scope and
+/// pay rate independently of estimate line items (a sub can cover multiple
+/// line items, or be paid lump sum).
+model ProjectSubcontractor {
+  id              String    @id @default(cuid())
+  projectId       String
+  subcontractorId String
+  scope           String? // "Plumbing rough + finish"
+  agreedAmount    Float? // lump-sum agreement (or null for hourly)
+  hourlyRate      Float? // alternative to agreedAmount
+  startDate       DateTime?
+  endDate         DateTime?
+  status          String    @default("invited") // invited | confirmed | onsite | done | cancelled
+  notes           String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  project       Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  subcontractor Subcontractor @relation(fields: [subcontractorId], references: [id], onDelete: Restrict)
+
+  @@unique([projectId, subcontractorId])
+  @@index([projectId])
+  @@index([subcontractorId])
+}
+
+/// Individual payment to a subcontractor. The 1099 sum is computed from these.
+model SubcontractorPayment {
+  id              String   @id @default(cuid())
+  subcontractorId String
+  projectId       String? // optional — could be a draw not yet attached
+  amount          Float
+  paidAt          DateTime
+  method          String   @default("check") // check | ach | cash | other
+  reference       String? // check number / Zelle memo
+  notes           String?
+  createdAt       DateTime @default(now())
+
+  subcontractor Subcontractor @relation(fields: [subcontractorId], references: [id], onDelete: Cascade)
+  project       Project?      @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  @@index([subcontractorId])
+  @@index([projectId])
+  @@index([paidAt])
+}
+
+/// Star rating + free-form notes left after a job ends. One per project per sub.
+model SubcontractorRating {
+  id                 String   @id @default(cuid())
+  subcontractorId    String
+  projectId          String
+  qualityStars       Int
+  timelinessStars    Int
+  communicationStars Int
+  overallStars       Int
+  notes              String?
+  createdAt          DateTime @default(now())
+
+  subcontractor Subcontractor @relation(fields: [subcontractorId], references: [id], onDelete: Cascade)
+  project       Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, subcontractorId])
+  @@index([subcontractorId])
 }

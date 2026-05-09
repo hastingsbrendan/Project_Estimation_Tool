@@ -3,6 +3,7 @@ import { PrismaAdapter } from "@auth/prisma-adapter"
 import Nodemailer from "next-auth/providers/nodemailer"
 import { prisma } from "@/lib/db"
 import { seedDefaultCatalogForUser } from "@/lib/seed-default-catalog"
+import { ensureDefaultSpecialties } from "@/lib/seed-default-specialties"
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   adapter: PrismaAdapter(prisma),
@@ -62,7 +63,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
      */
     createUser: async ({ user }) => {
       if (user.id) {
-        await seedDefaultCatalogForUser(user.id)
+        // Catalog is per-user; specialties are global with isDefault=true.
+        // ensureDefaultSpecialties is idempotent — it's safe to call on
+        // every signup, and on the first signup it self-heals if the
+        // global seed didn't run at deploy time.
+        await Promise.all([
+          seedDefaultCatalogForUser(user.id),
+          ensureDefaultSpecialties(),
+        ])
       }
     },
   },

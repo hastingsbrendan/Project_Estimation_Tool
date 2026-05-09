@@ -32,6 +32,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
               Receipts
             </Link>
             <Link
+              href="/subs"
+              className="px-3 py-2 rounded-md text-foreground-muted hover:bg-accent-soft hover:text-foreground transition-colors"
+            >
+              Subs
+            </Link>
+            <Link
               href="/catalog/services"
               className="px-3 py-2 rounded-md text-foreground-muted hover:bg-accent-soft hover:text-foreground transition-colors"
             >
