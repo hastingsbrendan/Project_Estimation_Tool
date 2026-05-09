@@ -3,6 +3,7 @@ import Link from "next/link"
 import { redirect } from "next/navigation"
 import { FeedbackButton } from "./feedback-button"
 import { sendFeedback } from "./feedback-actions"
+import { BottomNav } from "./bottom-nav"
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const session = await auth()
@@ -18,7 +19,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             </span>
             <span className="font-semibold text-foreground hidden sm:inline">Contractor App</span>
           </Link>
-          <nav className="flex items-center gap-1 text-sm">
+          {/* Inline nav hides on mobile — BottomNav takes over below sm:.
+              Five destinations don't fit on a 375px header without
+              wrap or overflow, and tap targets are uncomfortably
+              cramped even on tablet. */}
+          <nav className="hidden sm:flex items-center gap-1 text-sm">
             <Link
               href="/projects"
               className="px-3 py-2 rounded-md text-foreground-muted hover:bg-accent-soft hover:text-foreground transition-colors"
@@ -68,8 +73,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           </div>
         </div>
       </header>
-      <main className="flex-1 max-w-4xl mx-auto w-full px-4 sm:px-6 py-8">{children}</main>
+      {/* pb-20 reserves room for the fixed BottomNav (h-14 + safe-area)
+          on phones; falls back to py-8 on sm+. */}
+      <main className="flex-1 max-w-4xl mx-auto w-full px-4 sm:px-6 pt-6 pb-20 sm:py-8">
+        {children}
+      </main>
       <FeedbackButton action={sendFeedback} />
+      <BottomNav />
     </div>
   )
 }

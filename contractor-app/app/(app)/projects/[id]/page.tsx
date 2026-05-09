@@ -181,7 +181,7 @@ export default async function ProjectDetailPage({
   const canRate = ["accepted", "won", "done"].includes(project.status)
 
   return (
-    <div className="space-y-6 pb-32">
+    <div className="space-y-6 pb-44 sm:pb-32">
       {/* Back link + page actions */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <Link href="/projects" className="text-sm text-foreground-muted hover:text-foreground">
@@ -698,9 +698,15 @@ export default async function ProjectDetailPage({
         </form>
       </section>
 
-      {/* Sticky totals */}
-      <div className="fixed bottom-0 left-0 right-0 bg-surface border-t border-border z-10 shadow-md">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 py-3 grid grid-cols-2 sm:grid-cols-5 gap-3 text-sm">
+      {/* Sticky totals.
+          On mobile the BottomNav sits at bottom-0, so we offset
+          this bar by its height (h-14 → bottom-14). On sm+ where
+          BottomNav is hidden, drop back to bottom-0.
+          The pr-16 sm:pr-* reserves a gutter on the right so the
+          FeedbackButton FAB (positioned right-4 bottom-20) doesn't
+          eat into the Material-list CTA. */}
+      <div className="fixed bottom-14 sm:bottom-0 left-0 right-0 bg-surface border-t border-border z-10 shadow-md">
+        <div className="max-w-4xl mx-auto pl-4 pr-16 sm:px-6 py-3 grid grid-cols-2 sm:grid-cols-6 gap-3 text-sm items-center">
           <div>
             <p className="text-xs text-foreground-soft">Materials</p>
             <p className="font-medium tabular-nums text-foreground">
@@ -729,6 +735,16 @@ export default async function ProjectDetailPage({
               {formatCurrency(totals.total)}
             </p>
           </div>
+          {/* Primary in-the-field action — Mike's #1 task is "what
+              do I buy" once an estimate exists. Surface it here
+              instead of burying in the top-right header buttons. */}
+          <Link
+            href={`/projects/${project.id}/materials`}
+            className="col-span-2 sm:col-span-1 inline-flex items-center justify-center gap-1.5 bg-accent-soft hover:bg-accent text-foreground hover:text-white px-3 py-2 rounded-md text-sm font-medium transition-colors"
+            title="Open the material list — what to buy on the next truck day."
+          >
+            📋 Material list
+          </Link>
         </div>
       </div>
     </div>

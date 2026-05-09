@@ -36,7 +36,7 @@ export function FeedbackButton({
           setOpen(true)
           setFeedback(null)
         }}
-        className="fixed bottom-4 right-4 z-20 bg-accent text-white rounded-full shadow-lg w-12 h-12 flex items-center justify-center text-lg hover:bg-accent-hover transition-colors print:hidden"
+        className="fixed bottom-20 sm:bottom-4 right-4 z-20 bg-accent text-white rounded-full shadow-lg w-12 h-12 flex items-center justify-center text-lg hover:bg-accent-hover transition-colors print:hidden"
         title="Send feedback"
         aria-label="Send feedback"
       >

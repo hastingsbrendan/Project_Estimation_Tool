@@ -359,6 +359,12 @@ function CatalogRow({
 }) {
   const [isPending, startTransition] = useTransition()
   const [presetsOpen, setPresetsOpen] = useState(false)
+  // SKU UI: collapsed by default to reduce visual clutter on dense
+  // catalog tables. Click "Add SKU" / SKU value to reveal the input.
+  // Auto-open when there's no SKU AND the user has signaled intent
+  // (clicked the chip) — design feedback was that the always-visible
+  // input was over-stuffing the row.
+  const [skuEditing, setSkuEditing] = useState(false)
 
   const isLabor = item.kind === "labor"
   const hasPresets = presets.length > 0
@@ -381,26 +387,58 @@ function CatalogRow({
               <input
                 name="description"
                 defaultValue={item.description}
-                className="w-full bg-transparent border-b border-transparent hover:border-border focus:border-accent focus:outline-none px-1 py-0.5 -mx-1 text-foreground"
+                className="w-full bg-transparent border-b border-transparent hover:border-border focus:border-accent focus:outline-none px-1 py-1 -mx-1 text-foreground"
               />
               {!isLabor && (
-                <div className="flex items-center gap-1 mt-0.5">
-                  <span
-                    className="text-[10px] text-foreground-soft px-1 -mx-0.5"
-                    title="Home Depot SKU. When present, the cart-builder extension navigates straight to this product instead of fuzzy-searching by description."
-                  >
-                    HD SKU:
-                  </span>
-                  <input
-                    name="hdSku"
-                    defaultValue={item.hdSku ?? ""}
-                    placeholder="—"
-                    className="flex-1 max-w-[12rem] bg-transparent border-b border-transparent hover:border-border focus:border-accent focus:outline-none px-1 py-0 text-[11px] text-foreground-muted placeholder:text-foreground-soft"
-                  />
-                  {!item.hdSku && (
-                    <WarningChip title="Cart-builder will fall back to fuzzy text search for this item. Add the HD SKU to make it land directly on the product page.">
-                      SKU incomplete
-                    </WarningChip>
+                <div className="flex items-center gap-1.5 mt-0.5 text-xs">
+                  {/* AutoSaveForm always submits hdSku — keep a hidden
+                      input so a row that's never expanded still has
+                      a name=hdSku in the FormData. The visible input
+                      replaces it when editing. */}
+                  {!skuEditing && (
+                    <input type="hidden" name="hdSku" defaultValue={item.hdSku ?? ""} />
+                  )}
+                  {skuEditing ? (
+                    <>
+                      <span className="text-[10px] text-foreground-soft uppercase tracking-wider">
+                        HD SKU
+                      </span>
+                      <input
+                        name="hdSku"
+                        autoFocus
+                        defaultValue={item.hdSku ?? ""}
+                        placeholder="e.g. 100075069"
+                        onBlur={() => setSkuEditing(false)}
+                        className="flex-1 max-w-[14rem] bg-surface border border-border rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-accent text-foreground-muted"
+                      />
+                    </>
+                  ) : item.hdSku ? (
+                    <button
+                      type="button"
+                      onClick={() => setSkuEditing(true)}
+                      className="inline-flex items-center gap-1 text-foreground-soft hover:text-accent"
+                      title="Edit HD SKU"
+                    >
+                      <span className="text-[10px] uppercase tracking-wider">SKU</span>
+                      <span className="tabular-nums text-foreground-muted">
+                        {item.hdSku}
+                      </span>
+                      <span aria-hidden="true">✎</span>
+                    </button>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => setSkuEditing(true)}
+                        className="text-foreground-soft hover:text-accent"
+                        title="Add the Home Depot SKU so the cart-builder navigates directly to this product."
+                      >
+                        + Add HD SKU
+                      </button>
+                      <WarningChip title="Cart-builder will fall back to fuzzy text search for this item. Add the HD SKU to make it land directly on the product page.">
+                        SKU incomplete
+                      </WarningChip>
+                    </>
                   )}
                 </div>
               )}
@@ -420,7 +458,7 @@ function CatalogRow({
               <select
                 name="trade"
                 defaultValue={item.trade}
-                className="w-full bg-transparent border-b border-transparent hover:border-border focus:border-accent focus:outline-none px-1 py-0.5 -mx-1 text-foreground"
+                className="w-full bg-transparent border-b border-transparent hover:border-border focus:border-accent focus:outline-none px-1 py-1 -mx-1 text-foreground"
               >
                 {TRADES.filter((t) => t.value).map((t) => (
                   <option key={t.value} value={t.value}>
@@ -433,7 +471,7 @@ function CatalogRow({
               <input
                 name="unit"
                 defaultValue={item.unit}
-                className="w-full bg-transparent border-b border-transparent hover:border-border focus:border-accent focus:outline-none px-1 py-0.5 -mx-1 text-foreground"
+                className="w-full bg-transparent border-b border-transparent hover:border-border focus:border-accent focus:outline-none px-1 py-1 -mx-1 text-foreground"
               />
             </div>
             <div className="col-span-3 sm:col-span-1 text-right">
@@ -449,7 +487,7 @@ function CatalogRow({
                   type="number"
                   step="0.01"
                   defaultValue={item.unitPrice}
-                  className="w-full bg-transparent border-b border-transparent hover:border-border focus:border-accent focus:outline-none pl-4 pr-1 py-0.5 tabular-nums text-foreground text-right"
+                  className="w-full bg-transparent border-b border-transparent hover:border-border focus:border-accent focus:outline-none pl-4 pr-1 py-1 tabular-nums text-foreground text-right"
                 />
               </div>
               <div className="text-[10px] text-foreground-soft text-right -mt-1">
