@@ -15,17 +15,28 @@ test.describe("project lifecycle", () => {
     await page.fill('input[name="name"]', "Kitchen remodel — E2E")
     await page.fill('input[name="clientName"]', "Jane Test")
     await page.fill('input[name="clientEmail"]', "jane@example.com")
-    await page.click('button[type="submit"]')
+    // The layout has a "Sign out" button which is also `button[type="submit"]`,
+    // so use the form's accessible button name to scope the click.
+    await page.getByRole("button", { name: /Create project/i }).click()
 
     // Should redirect to /projects/<id>
     await expect(page).toHaveURL(/\/projects\/[a-z0-9]+$/)
-    await expect(page.getByRole("heading", { name: /Kitchen remodel/ })).toBeVisible()
+    // Project name is rendered as an editable input on the detail page,
+    // not a heading. Assert the input value instead.
+    await expect(page.locator('input[name="name"]')).toHaveValue(
+      "Kitchen remodel — E2E",
+    )
 
-    // Add a section.
-    await page.getByRole("button", { name: /add section/i }).click()
-    // Section name has a default; rename inline isn't strictly needed.
-    // Now we should see at least one services / materials picker.
-    await expect(page.getByPlaceholder(/Search services or type custom/)).toBeVisible()
+    // Add a section. The form requires a section name; submit button label
+    // is "+ Section".
+    await page.fill('input[placeholder*="Section name"]', "Demo")
+    await page.getByRole("button", { name: /^\+ Section$/ }).click()
+    // Now we should see the services picker for the new section. Catalog
+    // is empty for this fresh test user so the placeholder reads "Type a
+    // service description…" instead of "Search services…".
+    await expect(
+      page.getByPlaceholder(/Type a service description|Search services/).first(),
+    ).toBeVisible()
   })
 
   test("project list shows the new project", async ({ page }) => {
