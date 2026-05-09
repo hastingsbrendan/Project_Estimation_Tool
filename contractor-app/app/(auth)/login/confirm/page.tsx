@@ -52,12 +52,12 @@ export default async function ConfirmSignInPage({
   if (!token || !email) {
     return (
       <div className="min-h-screen flex items-center justify-center p-4">
-        <div className="w-full max-w-sm bg-white rounded-2xl shadow-sm border border-gray-200 p-8 text-center">
+        <div className="w-full max-w-sm bg-surface rounded-2xl shadow-sm border border-border p-8 text-center">
           <div className="text-4xl mb-3">⚠️</div>
-          <h1 className="text-lg font-semibold text-gray-900 mb-2">
+          <h1 className="text-lg font-semibold text-foreground mb-2">
             Invalid sign-in link
           </h1>
-          <p className="text-sm text-gray-600 mb-6">
+          <p className="text-sm text-foreground-muted mb-6">
             This link is missing the information needed to sign you in. Try
             requesting a new one.
           </p>
@@ -83,17 +83,17 @@ export default async function ConfirmSignInPage({
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4">
-      <div className="w-full max-w-sm bg-white rounded-2xl shadow-sm border border-gray-200 p-8 text-center">
+      <div className="w-full max-w-sm bg-surface rounded-2xl shadow-sm border border-border p-8 text-center">
         <div className="inline-flex items-center justify-center w-12 h-12 bg-accent rounded-xl mb-4 shadow-sm">
           <span className="text-white text-lg">🔨</span>
         </div>
-        <h1 className="text-xl font-bold text-gray-900 mb-2">
+        <h1 className="text-xl font-bold text-foreground mb-2">
           Confirm sign-in
         </h1>
-        <p className="text-sm text-gray-600 mb-1">
+        <p className="text-sm text-foreground-muted mb-1">
           You&apos;re signing in as
         </p>
-        <p className="text-sm font-medium text-gray-900 break-all mb-6">
+        <p className="text-sm font-medium text-foreground break-all mb-6">
           {email}
         </p>
 
@@ -104,7 +104,7 @@ export default async function ConfirmSignInPage({
           Continue to Contractor App
         </a>
 
-        <p className="mt-4 text-xs text-gray-500">
+        <p className="mt-4 text-xs text-foreground-soft">
           One click — links work once and expire after 24 hours.
         </p>
       </div>

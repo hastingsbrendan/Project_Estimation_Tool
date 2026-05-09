@@ -16,7 +16,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             <span className="inline-flex items-center justify-center w-7 h-7 bg-accent rounded-md text-white text-sm">
               🔨
             </span>
-            <span className="font-semibold text-foreground hidden xs:inline">Contractor App</span>
+            <span className="font-semibold text-foreground hidden sm:inline">Contractor App</span>
           </Link>
           <nav className="flex items-center gap-1 text-sm">
             <Link

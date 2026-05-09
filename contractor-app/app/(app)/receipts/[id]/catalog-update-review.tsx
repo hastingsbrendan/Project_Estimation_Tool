@@ -290,7 +290,11 @@ export function CatalogUpdateReview({
               Likely matches ({likelyRows.length}) — already in your catalog
             </p>
           </div>
-          <table className="w-full text-sm">
+          {/* Mobile: 5-column table won't fit on a 375px viewport.
+              Allow horizontal scroll inside the section so the rest of
+              the layout stays put. */}
+          <div className="overflow-x-auto">
+          <table className="w-full text-sm min-w-[560px]">
             <thead className="text-xs text-foreground-soft uppercase tracking-wider">
               <tr>
                 <th className="text-left px-3 py-2 w-8">Apply</th>
@@ -363,6 +367,7 @@ export function CatalogUpdateReview({
               })}
             </tbody>
           </table>
+          </div>
         </section>
       )}
 

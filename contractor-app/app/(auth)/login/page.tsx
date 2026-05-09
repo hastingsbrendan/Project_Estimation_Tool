@@ -66,12 +66,12 @@ function LoginForm() {
     return (
       <div className="text-center">
         <div className="mb-4 text-4xl">📬</div>
-        <h2 className="text-xl font-semibold text-gray-900 mb-2">Check your inbox</h2>
-        <p className="text-gray-600">
+        <h2 className="text-xl font-semibold text-foreground mb-2">Check your inbox</h2>
+        <p className="text-foreground-muted">
           We sent a magic link to <strong className="break-all">{showEmail}</strong>.
           Click the button in the email to sign in.
         </p>
-        <p className="mt-3 text-sm text-gray-500">
+        <p className="mt-3 text-sm text-foreground-soft">
           The link works once and expires in 24 hours.{" "}
           <strong>Check your spam folder</strong> if you don&apos;t see it within a
           minute.
@@ -97,14 +97,14 @@ function LoginForm() {
               setError("")
               setCooldown(0)
             }}
-            className="text-xs text-gray-500 hover:text-gray-700 hover:underline"
+            className="text-xs text-foreground-soft hover:text-foreground hover:underline"
           >
             Wrong email? Try a different address →
           </button>
         </div>
 
         {error && (
-          <p className="mt-4 text-xs text-red-600" aria-live="polite">
+          <p className="mt-4 text-xs text-danger" aria-live="polite">
             {error}
           </p>
         )}
@@ -118,19 +118,19 @@ function LoginForm() {
         <div className="inline-flex items-center justify-center w-12 h-12 bg-accent rounded-xl mb-4 shadow-sm">
           <span className="text-white text-lg">🔨</span>
         </div>
-        <h1 className="text-2xl font-bold text-gray-900">Contractor App</h1>
-        <p className="text-gray-500 mt-1 text-sm">Sign in to manage your estimates</p>
+        <h1 className="text-2xl font-bold text-foreground">Contractor App</h1>
+        <p className="text-foreground-soft mt-1 text-sm">Sign in to manage your estimates</p>
       </div>
 
       {(hasError || error) && (
-        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-danger">
           {error || "Sign-in failed. Please try again."}
         </div>
       )}
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
+          <label htmlFor="email" className="block text-sm font-medium text-foreground mb-1">
             Email address
           </label>
           <input
@@ -141,7 +141,7 @@ function LoginForm() {
             placeholder="you@example.com"
             required
             autoComplete="email"
-            className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent"
+            className="w-full px-3 py-2.5 border border-border rounded-lg text-sm bg-surface focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent"
           />
         </div>
         <button
@@ -153,7 +153,7 @@ function LoginForm() {
         </button>
       </form>
 
-      <p className="mt-6 text-center text-xs text-gray-400">
+      <p className="mt-6 text-center text-xs text-foreground-soft">
         No password needed. We&apos;ll email you a sign-in link.
       </p>
     </>
@@ -163,7 +163,7 @@ function LoginForm() {
 export default function LoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center p-4">
-      <div className="w-full max-w-sm bg-white rounded-2xl shadow-sm border border-gray-200 p-8">
+      <div className="w-full max-w-sm bg-surface rounded-2xl shadow-sm border border-border p-8">
         <Suspense>
           <LoginForm />
         </Suspense>

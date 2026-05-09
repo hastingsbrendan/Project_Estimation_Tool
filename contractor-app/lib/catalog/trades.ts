@@ -21,6 +21,13 @@ export const TRADES = [
   { value: "tile", label: "Tile" },
   { value: "flooring", label: "Flooring" },
   { value: "hvac", label: "HVAC" },
+  // Roofing / concrete / landscape are intentional taxonomy stubs —
+  // visible in the UI dropdowns and trade-pill filters so users can
+  // categorize their own catalog rows, but we don't seed starter
+  // items for them in seeds/catalog.ts (the dogfood contractor doesn't
+  // do these trades day-to-day; adding generic seed prices would just
+  // be noise to scroll past). Add seed rows when a real user starts
+  // working in one of these trades.
   { value: "roofing", label: "Roofing" },
   { value: "concrete", label: "Concrete" },
   { value: "landscape", label: "Landscape" },

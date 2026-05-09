@@ -94,9 +94,28 @@ window.addEventListener("message", (event) => {
 
 // The service worker can ask the bridge to fetch from the contractor-app
 // domain on its behalf (cookies travel automatically here).
-chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+//
+// Defense in depth: chrome.runtime.onMessage already restricts senders
+// to extension-internal scripts (web pages can't call this). On top of
+// that we (a) verify the sender ID matches our own extension and
+// (b) restrict the path to /api/v1/* so even a future content-script
+// bug couldn't be coerced into hitting an arbitrary contractor-app
+// path on this tab.
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (!message || typeof message !== "object") return false
   if (message.type === "fetch-on-app-domain" && typeof message.path === "string") {
+    if (sender.id !== chrome.runtime.id) {
+      sendResponse({ ok: false, status: 0, body: "Sender not trusted" })
+      return false
+    }
+    if (!message.path.startsWith("/api/v1/")) {
+      sendResponse({
+        ok: false,
+        status: 0,
+        body: "Path must start with /api/v1/",
+      })
+      return false
+    }
     fetch(`${window.location.origin}${message.path}`, {
       method: message.method ?? "GET",
       credentials: "include",

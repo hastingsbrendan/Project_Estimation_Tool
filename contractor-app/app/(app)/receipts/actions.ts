@@ -7,6 +7,12 @@ import { put, del } from "@vercel/blob"
 import { parseReceiptWithClaude } from "@/lib/ai/receipt-parser"
 import { requireReceipt, requireUserId } from "@/lib/auth-helpers"
 import { logError, logInfo } from "@/lib/log"
+import {
+  scoreAgainstCatalog,
+  bucketize,
+  type FuzzyCandidate,
+} from "@/lib/catalog/fuzzy-match"
+import { parseTradeSlug, type TradeSlug } from "@/lib/catalog/trades"
 
 const MAX_BYTES = 20 * 1024 * 1024 // 20 MB. Client compresses big images first.
 const ALLOWED_TYPES = new Set([
@@ -351,14 +357,6 @@ export async function deleteReceiptItem(
 // / new). applyCatalogUpdates atomically applies the contractor's per-row
 // decisions: update prices on existing rows, insert new rows, skip the rest.
 
-import {
-  scoreAgainstCatalog,
-  bucketize,
-  type FuzzyCandidate,
-} from "@/lib/catalog/fuzzy-match"
-
-import { parseTradeSlug, type TradeSlug } from "@/lib/catalog/trades"
-
 function pickTrade(v: string | null | undefined): TradeSlug {
   return parseTradeSlug(v)
 }
@@ -409,6 +407,24 @@ export type CatalogUpdatePreview = {
  * anything — that's applyCatalogUpdates' job.
  */
 export async function previewCatalogUpdates(
+  receiptId: string,
+): Promise<CatalogUpdatePreview> {
+  const started = Date.now()
+  try {
+    return await previewCatalogUpdatesInner(receiptId)
+  } catch (e) {
+    logError("previewCatalogUpdates", e, {
+      receiptId,
+      durationMs: Date.now() - started,
+    })
+    // Re-throw so the caller (a server component) renders Next's
+    // error boundary. The log line is the important part — without it,
+    // a Prisma blow-up would be silent in Vercel logs.
+    throw e
+  }
+}
+
+async function previewCatalogUpdatesInner(
   receiptId: string,
 ): Promise<CatalogUpdatePreview> {
   const { receipt, userId } = await requireReceipt(receiptId)
