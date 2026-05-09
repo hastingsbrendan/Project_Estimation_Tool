@@ -1,0 +1,44 @@
+{
+  "manifest_version": 3,
+  "name": "Contractor App — HD cart builder",
+  "version": "0.1.0",
+  "description": "Build a Home Depot cart from a Contractor App project's material list. Searches, scrapes candidates, asks the app's matcher to pick the best, flags out-of-stock with alternatives. Never purchases.",
+  "permissions": ["storage", "tabs", "scripting"],
+  "host_permissions": ["https://www.homedepot.com/*"],
+  "background": {
+    "service_worker": "src/background/service-worker.ts",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://contractor-app.vercel.app/*",
+        "http://localhost:3000/*",
+        "http://localhost:3100/*"
+      ],
+      "js": ["src/content/contractor-app-bridge.ts"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://www.homedepot.com/*"],
+      "js": ["src/content/home-depot-driver.ts"],
+      "run_at": "document_idle"
+    }
+  ],
+  "externally_connectable": {
+    "matches": [
+      "https://contractor-app.vercel.app/*",
+      "http://localhost:3000/*",
+      "http://localhost:3100/*"
+    ]
+  },
+  "action": {
+    "default_popup": "src/popup/popup.html",
+    "default_title": "Contractor App cart builder"
+  },
+  "icons": {
+    "16": "public/icons/icon-16.png",
+    "48": "public/icons/icon-48.png",
+    "128": "public/icons/icon-128.png"
+  }
+}

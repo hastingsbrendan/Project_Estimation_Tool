@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Contractor App cart builder</title>
+    <style>
+      body {
+        font-family: system-ui, -apple-system, sans-serif;
+        font-size: 13px;
+        color: #18181b;
+        margin: 0;
+        padding: 16px;
+        width: 320px;
+      }
+      h1 {
+        font-size: 14px;
+        margin: 0 0 8px 0;
+      }
+      p {
+        color: #52525b;
+        line-height: 1.5;
+        margin: 4px 0;
+      }
+      code {
+        background: #f4f4f5;
+        padding: 2px 4px;
+        border-radius: 3px;
+        font-size: 12px;
+      }
+      .meta {
+        margin-top: 12px;
+        padding-top: 8px;
+        border-top: 1px solid #e4e4e7;
+        font-size: 11px;
+        color: #71717a;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Contractor App — Cart builder</h1>
+    <p>
+      Builds a Home Depot cart from a project's material list. Open a
+      project's <code>/projects/&lt;id&gt;/materials</code> page in the
+      Contractor App, then click <strong>Build cart at Home Depot</strong>.
+    </p>
+    <p>
+      <strong>Never purchases.</strong> Adds items to your HD cart for
+      review; you check out manually.
+    </p>
+    <div class="meta">
+      <div>Version: <span id="version">…</span></div>
+      <div>Extension ID: <span id="ext-id">…</span></div>
+    </div>
+    <script type="module" src="./popup.ts"></script>
+  </body>
+</html>

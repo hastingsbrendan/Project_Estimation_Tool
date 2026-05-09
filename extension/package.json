@@ -1,0 +1,22 @@
+{
+  "name": "contractor-app-cart-builder",
+  "version": "0.1.0",
+  "description": "Chrome extension that builds a Home Depot cart from a contractor-app project's material list. Drives search + DOM scraping; matching inference happens server-side via the contractor-app's /api/v1 endpoints. No purchases.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite build --watch",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@crxjs/vite-plugin": "^2.0.0",
+    "@types/chrome": "^0.0.287",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.7"
+  }
+}

@@ -4,6 +4,7 @@ import { auth } from "@/auth"
 import { prisma } from "@/lib/db"
 import { aggregateMaterials, materialsTotal } from "@/lib/materials"
 import { formatCurrency } from "@/lib/calc"
+import { CartBuilderButton } from "./cart-builder-button"
 
 export default async function MaterialsPage({
   params,
@@ -49,14 +50,17 @@ export default async function MaterialsPage({
             summed across sections when the description and unit match.
           </p>
         </div>
-        <a
-          href={`/api/pdf/materials/${project.id}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-2 bg-accent text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-accent-hover transition-colors shrink-0"
-        >
-          📄 Download PDF
-        </a>
+        <div className="flex items-center gap-2 flex-wrap shrink-0">
+          <CartBuilderButton projectId={project.id} />
+          <a
+            href={`/api/pdf/materials/${project.id}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 bg-accent text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-accent-hover transition-colors"
+          >
+            📄 Download PDF
+          </a>
+        </div>
       </div>
 
       {rows.length === 0 ? (
