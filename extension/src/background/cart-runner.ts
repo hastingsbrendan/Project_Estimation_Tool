@@ -139,29 +139,8 @@ async function runPipeline(state: RunState): Promise<void> {
   for (let i = 0; i < state.items.length; i++) {
     const item = state.items[i]!
     try {
-      await waitForHdDriverReady(hdTab.id ?? -1)
-      let status: RunItemStatus | null = null
-      // Allow up to 3 navigation cycles per material (search → PDP → ?)
-      for (let attempt = 0; attempt < 3; attempt++) {
-        const res = await chrome.tabs.sendMessage(hdTab.id ?? -1, {
-          type: "drive-material",
-          idx: i,
-          material: item.material,
-          appOrigin: state.meta.appOrigin,
-        })
-        if (!res || typeof res !== "object" || !("ok" in res)) {
-          status = { kind: "error", message: "Driver returned no response" }
-          break
-        }
-        const final = (res as { status: RunItemStatus }).status
-        if (final.kind === "searching") {
-          await waitForHdDriverReady(hdTab.id ?? -1)
-          continue
-        }
-        status = final
-        break
-      }
-      state.items[i]!.status = status ?? { kind: "error", message: "Exhausted attempts" }
+      const status = await driveOneMaterial(state, hdTab.id ?? -1, i, item)
+      state.items[i]!.status = status
     } catch (e) {
       state.items[i]!.status = {
         kind: "error",
@@ -169,6 +148,10 @@ async function runPipeline(state: RunState): Promise<void> {
       }
     }
     await saveRun(state)
+    // Re-push the updated checklist so the side panel reflects per-item
+    // progress as we go. (The driver's local copy is also updated, but
+    // navigations between materials wipe its in-memory state.)
+    await pushPanelState(state, hdTab.id ?? -1)
   }
 
   state.phase = "done"
@@ -198,6 +181,135 @@ async function waitForHdDriverReady(
     await new Promise((r) => setTimeout(r, 400))
   }
   throw new Error(`HD driver did not become ready in ${deadlineMs}ms`)
+}
+
+/**
+ * Wait for `chrome.tabs.onUpdated` to report status: "complete" for a
+ * given tab. Used after we tell the worker to navigate the HD tab — the
+ * driver's content script is reinjected on the new page, but we still
+ * need to wait for it to actually be ready before sending more messages.
+ */
+async function waitForTabComplete(
+  tabId: number,
+  deadlineMs = 15_000,
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const t = setTimeout(() => {
+      chrome.tabs.onUpdated.removeListener(handler)
+      reject(new Error(`Tab ${tabId} didn't reach 'complete' in ${deadlineMs}ms`))
+    }, deadlineMs)
+    function handler(updatedTabId: number, info: chrome.tabs.TabChangeInfo) {
+      if (updatedTabId !== tabId) return
+      if (info.status === "complete") {
+        clearTimeout(t)
+        chrome.tabs.onUpdated.removeListener(handler)
+        resolve()
+      }
+    }
+    chrome.tabs.onUpdated.addListener(handler)
+  })
+}
+
+/**
+ * Drive a single material end to end, handling navigations the driver
+ * requests (search page, then optionally PDP for matched candidates).
+ * Returns the final RunItemStatus.
+ *
+ * The driver content script CANNOT navigate itself — doing so kills the
+ * message channel mid-response. So instead, when work requires a
+ * different page, the driver responds synchronously with `navigateTo`
+ * and this function does the navigation here, then re-issues the
+ * appropriate message after the new page settles.
+ */
+/**
+ * Re-push the side-panel state to the driver. The driver's in-memory
+ * panelState is wiped on every navigation, so after we navigate the HD
+ * tab we have to repaint it.
+ */
+async function pushPanelState(state: RunState, tabId: number): Promise<void> {
+  try {
+    await chrome.tabs.sendMessage(tabId, {
+      type: "init-side-panel",
+      projectName: state.payload?.project.name ?? null,
+      items: state.items,
+    })
+  } catch {
+    // tab may have navigated again; next ready tick will re-push
+  }
+}
+
+async function driveOneMaterial(
+  state: RunState,
+  tabId: number,
+  idx: number,
+  item: RunItem,
+): Promise<RunItemStatus> {
+  // Up to 3 navigation cycles per material (search → maybe PDP → add).
+  for (let cycle = 0; cycle < 4; cycle++) {
+    await waitForHdDriverReady(tabId)
+    await pushPanelState(state, tabId)
+    const res = await chrome.tabs.sendMessage(tabId, {
+      type: "drive-material",
+      idx,
+      material: item.material,
+      appOrigin: state.meta.appOrigin,
+    })
+    if (!res || typeof res !== "object" || !("ok" in res) || !res.ok) {
+      return { kind: "error", message: "Driver returned no response" }
+    }
+    const r = res as { navigateTo?: string; status?: RunItemStatus }
+    if (r.navigateTo) {
+      await chrome.tabs.update(tabId, { url: r.navigateTo })
+      await waitForTabComplete(tabId)
+      continue
+    }
+    const status = r.status
+    if (!status) {
+      return { kind: "error", message: "Driver returned no status" }
+    }
+    if (status.kind === "matched") {
+      // Stash the matched state on the item so the panel can show it
+      // while we navigate to the PDP.
+      state.items[idx]!.status = status
+      const finalStatus = await navigateAndAddToCart(state, tabId, idx, status.candidate)
+      return finalStatus
+    }
+    return status
+  }
+  return { kind: "error", message: "Exhausted navigation cycles" }
+}
+
+/**
+ * Given a matched candidate, navigate the HD tab to the PDP and tell the
+ * driver to click "Add to Cart". One nav cycle (driver may itself
+ * request the PDP URL if the worker raced).
+ */
+async function navigateAndAddToCart(
+  state: RunState,
+  tabId: number,
+  idx: number,
+  candidate: Candidate,
+): Promise<RunItemStatus> {
+  for (let cycle = 0; cycle < 3; cycle++) {
+    await waitForHdDriverReady(tabId)
+    await pushPanelState(state, tabId)
+    const res = await chrome.tabs.sendMessage(tabId, {
+      type: "add-to-cart-on-pdp",
+      idx,
+      candidate,
+    })
+    if (!res || typeof res !== "object" || !("ok" in res) || !res.ok) {
+      return { kind: "error", message: "Driver returned no PDP response" }
+    }
+    const r = res as { navigateTo?: string; status?: RunItemStatus }
+    if (r.navigateTo) {
+      await chrome.tabs.update(tabId, { url: r.navigateTo })
+      await waitForTabComplete(tabId)
+      continue
+    }
+    return r.status ?? { kind: "error", message: "PDP driver returned no status" }
+  }
+  return { kind: "error", message: "Exhausted PDP cycles" }
 }
 
 async function fetchPayloadViaBridge(

@@ -307,9 +307,10 @@ function extractPack(title: string): string | null {
 
 async function addToCart(candidate: Candidate): Promise<{ ok: boolean; error?: string }> {
   if (!candidate.url) return { ok: false, error: "No URL" }
+  // Caller is responsible for navigating us to the PDP; if we're elsewhere
+  // bail rather than self-navigating (kills this script mid-call).
   if (window.location.href !== candidate.url) {
-    window.location.href = candidate.url
-    return { ok: false, error: "Navigated to PDP — caller must resume" }
+    return { ok: false, error: "Not on PDP — driver shouldn't self-navigate" }
   }
   const atc = await waitFor<HTMLButtonElement>(
     'button[data-testid="atc-button"], button[data-automation-id="addToCart"], button[aria-label*="Add to Cart" i]',
@@ -325,6 +326,21 @@ async function addToCart(candidate: Candidate): Promise<{ ok: boolean; error?: s
 // Per-material orchestration (driven by the worker)
 // ─────────────────────────────────────────────────────────────────────────
 
+/**
+ * Returns the search URL the driver needs to be on to scrape candidates
+ * for a given material. Used by the listener to detect needed navigations
+ * BEFORE invoking driveMaterial (which can only run when we're on the
+ * right page).
+ */
+function searchUrlFor(material: Material): string {
+  return SEARCH_URL(material.description)
+}
+
+function isOnSearchPageFor(material: Material): boolean {
+  const target = searchUrlFor(material).split("?")[0]!
+  return window.location.href.startsWith(target)
+}
+
 async function driveMaterial(
   idx: number,
   material: Material,
@@ -332,10 +348,11 @@ async function driveMaterial(
 ): Promise<RunItemStatus> {
   setItemStatus(idx, { kind: "searching" })
 
-  const targetUrl = SEARCH_URL(material.description)
-  if (!window.location.href.startsWith(targetUrl.split("?")[0]!)) {
-    window.location.href = targetUrl
-    return { kind: "searching" }
+  // Caller (worker) is responsible for navigating us here first. If we
+  // somehow ended up on the wrong page, bail with no-match rather than
+  // navigating ourselves — navigation kills this content script mid-call.
+  if (!isOnSearchPageFor(material)) {
+    return { kind: "no-match", reasoning: "Driver wasn't on the search page" }
   }
 
   const haveResults = await waitFor(
@@ -409,22 +426,15 @@ async function driveMaterial(
   }
 
   if (result.confidence >= 0.8) {
-    setItemStatus(idx, {
+    // Don't navigate from inside this handler — the worker drives PDP
+    // navigation, then sends "add-to-cart-on-pdp". Returning matched
+    // signals "ready to add, please put me on the PDP."
+    return {
       kind: "matched",
       candidate: chosen,
       confidence: result.confidence,
       reasoning: result.reasoning,
-    })
-    const r = await addToCart(chosen)
-    if (!r.ok) {
-      return {
-        kind: "matched",
-        candidate: chosen,
-        confidence: result.confidence,
-        reasoning: result.reasoning,
-      }
     }
-    return { kind: "added", candidate: chosen }
   }
 
   return {
@@ -443,8 +453,9 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   const m = message as { type?: string }
 
   if (m.type === "hd-driver-ping") {
+    // Sync response — never returns true. Avoids leaving channels open.
     sendResponse({ ok: true, url: window.location.href })
-    return true
+    return false
   }
 
   if (m.type === "init-side-panel") {
@@ -456,14 +467,44 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     }
     renderPanel()
     sendResponse({ ok: true })
-    return true
+    return false
   }
 
   if (m.type === "drive-material") {
     const drive = message as { idx: number; material: Material; appOrigin: string }
+    // If we're not on the right search page, tell the worker to navigate
+    // us — and respond SYNCHRONOUSLY so the message channel doesn't get
+    // torn down by a navigation we kicked off ourselves.
+    if (!isOnSearchPageFor(drive.material)) {
+      sendResponse({
+        ok: true,
+        navigateTo: searchUrlFor(drive.material),
+      })
+      return false
+    }
     void driveMaterial(drive.idx, drive.material, drive.appOrigin).then((status) => {
       setItemStatus(drive.idx, status)
       sendResponse({ ok: true, status })
+    })
+    return true
+  }
+
+  if (m.type === "add-to-cart-on-pdp") {
+    const req = message as { idx: number; candidate: Candidate }
+    if (window.location.href !== req.candidate.url) {
+      sendResponse({ ok: true, navigateTo: req.candidate.url })
+      return false
+    }
+    void addToCart(req.candidate).then((r) => {
+      if (r.ok) {
+        setItemStatus(req.idx, { kind: "added", candidate: req.candidate })
+        sendResponse({ ok: true, status: { kind: "added", candidate: req.candidate } })
+      } else {
+        sendResponse({
+          ok: true,
+          status: { kind: "error", message: r.error ?? "Add to cart failed" },
+        })
+      }
     })
     return true
   }
@@ -474,7 +515,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     panelState.errorMessage = sp.errorMessage
     renderPanel()
     sendResponse({ ok: true })
-    return true
+    return false
   }
 
   return false
