@@ -5,18 +5,12 @@ import { redirect } from "next/navigation"
 import { formatCurrency } from "@/lib/calc"
 import { uploadReceipt } from "./actions"
 import { UploadReceiptButton } from "./upload-receipt-button"
+import { StatusBadge } from "@/components/ui/status-badge"
 
 // Receipt uploads can take 5-15s on a slow phone connection (Blob put +
 // DB row creation). Server actions inherit maxDuration from the page they
 // run from, so set 60 here.
 export const maxDuration = 60
-
-const STATUS_BADGE: Record<string, string> = {
-  pending: "bg-gray-100 text-gray-700",
-  parsed: "bg-green-50 text-green-700",
-  manual: "bg-blue-50 text-blue-700",
-  error: "bg-red-50 text-red-700",
-}
 
 export default async function ReceiptsPage({
   searchParams,
@@ -129,13 +123,7 @@ export default async function ReceiptsPage({
                         Catalog
                       </span>
                     )}
-                    <span
-                      className={`text-[10px] font-medium px-2 py-0.5 rounded-full uppercase tracking-wider ${
-                        STATUS_BADGE[r.parseStatus] ?? STATUS_BADGE.pending
-                      }`}
-                    >
-                      {r.parseStatus}
-                    </span>
+                    <StatusBadge status={r.parseStatus} className="uppercase tracking-wider" />
                   </div>
                   <p className="text-sm text-foreground-muted truncate">
                     {r.purchasedAt

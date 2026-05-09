@@ -4,6 +4,7 @@ import { auth } from "@/auth"
 import { prisma } from "@/lib/db"
 import { formatCurrency } from "@/lib/calc"
 import { isPiiKeyConfigured } from "@/lib/crypto/secret-box"
+import { WarningChip } from "@/components/ui/warning-chip"
 import { AutoSaveForm } from "../../projects/[id]/auto-form"
 import { ConfirmSubmitButton } from "../../confirm-submit-button"
 import {
@@ -68,15 +69,13 @@ export default async function SubcontractorDetailPage({
               YTD <strong className="text-foreground tabular-nums">{formatCurrency(ytd)}</strong>
             </span>
             {eligibleFor1099 && (
-              <span
-                className={
-                  missingTaxId
-                    ? "px-2 py-0.5 rounded-full bg-red-50 border border-red-300 text-danger"
-                    : "px-2 py-0.5 rounded-full bg-amber-50 border border-amber-300 text-amber-900"
-                }
+              <WarningChip
+                tone={missingTaxId ? "danger" : "warning"}
+                size="sm"
+                className="rounded-full"
               >
                 {missingTaxId ? "⚠ 1099 — tax ID missing" : "1099 eligible"}
-              </span>
+              </WarningChip>
             )}
             {sub.archived && (
               <span className="px-2 py-0.5 rounded-full bg-surface-muted text-foreground-soft">

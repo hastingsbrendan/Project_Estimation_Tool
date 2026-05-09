@@ -2,15 +2,7 @@ import Link from "next/link"
 import { auth } from "@/auth"
 import { prisma } from "@/lib/db"
 import { calcEstimate, formatCurrency } from "@/lib/calc"
-
-const STATUS_COLORS: Record<string, string> = {
-  draft: "bg-gray-100 text-gray-700",
-  sent: "bg-blue-50 text-blue-700",
-  accepted: "bg-green-50 text-green-700",
-  won: "bg-green-100 text-green-800",
-  rejected: "bg-red-50 text-red-700",
-  lost: "bg-red-100 text-red-800",
-}
+import { StatusBadge } from "@/components/ui/status-badge"
 
 export default async function ProjectsPage({
   searchParams,
@@ -117,7 +109,6 @@ export default async function ProjectsPage({
               taxRate: project.taxRate,
             }).total
             const itemCount = lineItems.length
-            const statusColor = STATUS_COLORS[project.status] ?? STATUS_COLORS.draft
 
             return (
               <li key={project.id}>
@@ -128,9 +119,7 @@ export default async function ProjectsPage({
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 mb-0.5">
                       <p className="font-medium text-foreground truncate">{project.name}</p>
-                      <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full uppercase tracking-wider ${statusColor}`}>
-                        {project.status}
-                      </span>
+                      <StatusBadge status={project.status} className="uppercase tracking-wider" />
                     </div>
                     <p className="text-sm text-foreground-muted truncate">
                       {project.clientName ?? "No client"}

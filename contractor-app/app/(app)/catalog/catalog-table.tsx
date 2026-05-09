@@ -3,6 +3,7 @@
 import { useMemo, useRef, useState, useTransition } from "react"
 import { AutoSaveForm } from "../projects/[id]/auto-form"
 import { TRADES as TRADE_OPTIONS } from "@/lib/catalog/trades"
+import { WarningChip } from "@/components/ui/warning-chip"
 
 type CatalogItemView = {
   id: string
@@ -397,12 +398,9 @@ function CatalogRow({
                     className="flex-1 max-w-[12rem] bg-transparent border-b border-transparent hover:border-border focus:border-accent focus:outline-none px-1 py-0 text-[11px] text-foreground-muted placeholder:text-foreground-soft"
                   />
                   {!item.hdSku && (
-                    <span
-                      className="text-[9px] font-medium text-amber-800 bg-amber-100 border border-amber-200 rounded px-1 leading-tight whitespace-nowrap"
-                      title="Cart-builder will fall back to fuzzy text search for this item. Add the HD SKU to make it land directly on the product page."
-                    >
+                    <WarningChip title="Cart-builder will fall back to fuzzy text search for this item. Add the HD SKU to make it land directly on the product page.">
                       SKU incomplete
-                    </span>
+                    </WarningChip>
                   )}
                 </div>
               )}

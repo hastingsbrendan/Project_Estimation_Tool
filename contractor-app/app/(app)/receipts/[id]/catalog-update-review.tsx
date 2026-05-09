@@ -7,6 +7,7 @@ import type {
   CatalogUpdateDecision,
 } from "../actions"
 import { TRADES } from "@/lib/catalog/trades"
+import { WarningChip } from "@/components/ui/warning-chip"
 
 /**
  * Per-row state the review screen tracks. Mirrors the three buckets but
@@ -399,9 +400,7 @@ export function CatalogUpdateReview({
                         ) : (
                           <>
                             {" · "}
-                            <span className="text-amber-700 bg-amber-50 border border-amber-200 rounded px-1 py-0.5 text-[10px]">
-                              SKU incomplete
-                            </span>
+                            <WarningChip>SKU incomplete</WarningChip>
                           </>
                         )}
                       </p>
@@ -565,9 +564,7 @@ export function CatalogUpdateReview({
                           }`}
                         />
                         {!r.hdSku.trim() && (
-                          <span className="text-[10px] font-medium text-amber-800 bg-amber-100 border border-amber-200 rounded px-1.5 py-0.5">
-                            SKU incomplete
-                          </span>
+                          <WarningChip>SKU incomplete</WarningChip>
                         )}
                       </div>
                     </div>

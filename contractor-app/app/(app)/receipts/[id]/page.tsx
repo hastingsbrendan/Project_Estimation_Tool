@@ -3,6 +3,7 @@ import { notFound } from "next/navigation"
 import { auth } from "@/auth"
 import { prisma } from "@/lib/db"
 import { formatCurrency } from "@/lib/calc"
+import { StatusBadge } from "@/components/ui/status-badge"
 import { AutoSaveForm } from "../../projects/[id]/auto-form"
 import {
   addReceiptItem,
@@ -26,13 +27,6 @@ import { logError } from "@/lib/log"
 // trigger calls `reparseReceipt` from this page, so the action inherits
 // this duration. 60s is the Hobby-plan ceiling.
 export const maxDuration = 60
-
-const STATUS_BADGE: Record<string, string> = {
-  pending: "bg-gray-100 text-gray-700",
-  parsed: "bg-green-50 text-green-700",
-  manual: "bg-blue-50 text-blue-700",
-  error: "bg-red-50 text-red-700",
-}
 
 async function loadReceiptDetail(id: string) {
   const session = await auth()
@@ -117,13 +111,7 @@ export default async function ReceiptDetailPage({
                 Catalog
               </span>
             )}
-            <span
-              className={`text-[10px] font-medium px-2 py-0.5 rounded-full uppercase tracking-wider ${
-                STATUS_BADGE[receipt.parseStatus] ?? STATUS_BADGE.pending
-              }`}
-            >
-              {receipt.parseStatus}
-            </span>
+            <StatusBadge status={receipt.parseStatus} className="uppercase tracking-wider" />
           </div>
         </div>
       </div>
