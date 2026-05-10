@@ -178,6 +178,56 @@ async function main() {
     },
   })
 
+  // Dedicated fixture for the SKU-conflict E2E spec. Lives separately
+  // from `catalogReceipt` so that spec doesn't mutate state shared with
+  // catalog-receipt.spec (which applies updates and flips the receipt's
+  // catalogReviewedAt). Both pieces — the catalog row and the matching
+  // receipt line — carry a SKU so the conflict warning fires.
+  const EXISTING_CATALOG_SKU = "EXISTING-SKU-100"
+  const CONFLICTING_RECEIPT_SKU = "RECEIPT-SKU-999"
+  // Identical descriptions ensure the fuzzy matcher buckets this in
+  // "likely matches" with high confidence — that's the bucket where
+  // the SKU conflict UI lives. (catalog-receipt.spec uses non-
+  // identical descriptions to exercise the more-typical fuzzy path.)
+  const SKU_CONFLICT_DESCRIPTION = "PEX-A pipe 3/4 inch 10 ft stick"
+  const skuConflictCatalogItem = await prisma.catalogItem.create({
+    data: {
+      userId: TEST_USER.id,
+      trade: "plumbing",
+      description: SKU_CONFLICT_DESCRIPTION,
+      unit: "ea",
+      unitPrice: 16.25,
+      kind: "material",
+      hdSku: EXISTING_CATALOG_SKU,
+    },
+  })
+  const skuConflictReceipt = await prisma.receipt.create({
+    data: {
+      userId: TEST_USER.id,
+      forCatalog: true,
+      imageUrl: "https://example.invalid/sku-conflict-receipt.jpg",
+      imagePathname: `receipts/${TEST_USER.id}/sku-conflict.jpg`,
+      filename: "sku-conflict-receipt.jpg",
+      size: 100_000,
+      parseStatus: "parsed",
+      vendor: "Home Depot",
+      total: 17.85,
+      items: {
+        create: [
+          {
+            description: SKU_CONFLICT_DESCRIPTION,
+            quantity: 1,
+            unit: "ea",
+            unitPrice: 17.85,
+            lineTotal: 17.85,
+            sku: CONFLICTING_RECEIPT_SKU,
+            order: 0,
+          },
+        ],
+      },
+    },
+  })
+
   // Proposal-flow project (full content)
   const proposalProject = await prisma.project.create({
     data: {
@@ -250,6 +300,13 @@ async function main() {
       existingCatalogItemId: catalogItem.id,
       existingDescription: catalogItem.description,
       existingPrice: catalogItem.unitPrice,
+    },
+    skuConflict: {
+      receiptId: skuConflictReceipt.id,
+      existingCatalogItemId: skuConflictCatalogItem.id,
+      existingDescription: skuConflictCatalogItem.description,
+      existingSku: EXISTING_CATALOG_SKU,
+      conflictingReceiptSku: CONFLICTING_RECEIPT_SKU,
     },
     proposal: {
       projectId: proposalProject.id,

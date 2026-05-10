@@ -27,6 +27,13 @@ type Fixtures = {
     existingDescription: string
     existingPrice: number
   }
+  skuConflict: {
+    receiptId: string
+    existingCatalogItemId: string
+    existingDescription: string
+    existingSku: string
+    conflictingReceiptSku: string
+  }
 }
 
 let cached: Fixtures | null = null
