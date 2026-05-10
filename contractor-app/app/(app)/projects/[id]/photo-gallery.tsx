@@ -148,7 +148,7 @@ function PhotoTile({
             await onDelete()
           })
         }}
-        className="absolute top-1 right-1 w-6 h-6 bg-black/60 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-danger flex items-center justify-center text-xs disabled:opacity-30"
+        className="absolute top-1 right-1 w-6 h-6 bg-black/60 text-white rounded-full opacity-0 group-hover:opacity-100 [@media(hover:none)]:opacity-70 transition-opacity hover:bg-danger flex items-center justify-center text-xs disabled:opacity-30"
         title="Delete photo"
       >
         ✕

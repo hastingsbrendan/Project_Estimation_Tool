@@ -12,6 +12,7 @@ import {
   updatePreset,
 } from "../actions"
 import { CatalogTable } from "../catalog-table"
+import { Card } from "@/components/ui/card"
 
 export default async function ServicesCatalogPage() {
   const session = await auth()
@@ -104,7 +105,7 @@ export default async function ServicesCatalogPage() {
 
 function EmptyState() {
   return (
-    <div className="bg-surface border border-border rounded-lg p-8 text-center">
+    <Card size="empty">
       <div className="inline-flex items-center justify-center w-14 h-14 bg-accent-soft rounded-2xl mb-4">
         <span className="text-3xl">🔧</span>
       </div>
@@ -130,6 +131,6 @@ function EmptyState() {
           Start from scratch
         </a>
       </div>
-    </div>
+    </Card>
   )
 }

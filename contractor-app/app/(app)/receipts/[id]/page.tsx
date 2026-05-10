@@ -381,7 +381,7 @@ export default async function ReceiptDetailPage({
                         >
                           <button
                             type="submit"
-                            className="text-xs text-foreground-soft opacity-0 group-hover:opacity-100 hover:text-danger transition-all"
+                            className="text-xs text-foreground-soft opacity-0 group-hover:opacity-100 hover:text-danger transition-all [@media(hover:none)]:opacity-50"
                             title="Delete item"
                           >
                             ✕

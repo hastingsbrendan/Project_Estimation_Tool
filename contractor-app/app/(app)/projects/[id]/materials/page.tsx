@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db"
 import { aggregateMaterials, materialsTotal } from "@/lib/materials"
 import { formatCurrency } from "@/lib/calc"
 import { CartBuilderButton } from "./cart-builder-button"
+import { Card } from "@/components/ui/card"
 
 export default async function MaterialsPage({
   params,
@@ -94,12 +95,12 @@ export default async function MaterialsPage({
       </div>
 
       {rows.length === 0 ? (
-        <div className="bg-surface border border-border rounded-lg p-8 text-center">
+        <Card size="empty">
           <p className="text-sm text-foreground-muted">
             No material line items in this project yet. Add some on the project page,
             then come back to generate a shopping list.
           </p>
-        </div>
+        </Card>
       ) : (
         <div className="bg-surface border border-border rounded-lg overflow-hidden">
           <div className="hidden sm:grid grid-cols-12 gap-2 px-4 py-2 bg-surface-muted text-[10px] font-medium uppercase tracking-wider text-foreground-soft">

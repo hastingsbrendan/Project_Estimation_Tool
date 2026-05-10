@@ -4,6 +4,7 @@ import { useMemo, useRef, useState, useTransition } from "react"
 import { AutoSaveForm } from "../projects/[id]/auto-form"
 import { TRADES as TRADE_OPTIONS } from "@/lib/catalog/trades"
 import { WarningChip } from "@/components/ui/warning-chip"
+import { TabPillButton } from "@/components/ui/tab-pill"
 
 type CatalogItemView = {
   id: string
@@ -118,18 +119,14 @@ export function CatalogTable({
               ? scopedItems.length
               : scopedItems.filter((i) => i.trade === t.value).length
           return (
-            <button
+            <TabPillButton
               key={t.value}
-              type="button"
+              active={trade === t.value}
               onClick={() => setTrade(t.value)}
-              className={`text-xs px-2.5 py-1 rounded-full transition-colors ${
-                trade === t.value
-                  ? "bg-accent text-white"
-                  : "bg-surface border border-border text-foreground-muted hover:bg-accent-soft hover:text-foreground"
-              }`}
             >
-              {t.label} <span className="opacity-60 tabular-nums">({count})</span>
-            </button>
+              {t.label}
+              <span className="opacity-60 tabular-nums">({count})</span>
+            </TabPillButton>
           )
         })}
       </div>
@@ -526,7 +523,7 @@ function CatalogRow({
                   await deleteAction(item.id)
                 })
               }}
-              className="text-xs text-foreground-soft opacity-0 group-hover:opacity-100 hover:text-danger transition-all disabled:opacity-50"
+              className="text-xs text-foreground-soft opacity-0 group-hover:opacity-100 hover:text-danger transition-all disabled:opacity-50 [@media(hover:none)]:opacity-50"
               title="Delete item"
             >
               ✕

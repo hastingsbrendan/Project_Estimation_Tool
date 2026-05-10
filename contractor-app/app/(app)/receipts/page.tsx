@@ -6,6 +6,7 @@ import { formatCurrency } from "@/lib/calc"
 import { uploadReceipt } from "./actions"
 import { UploadReceiptButton } from "./upload-receipt-button"
 import { StatusBadge } from "@/components/ui/status-badge"
+import { TabPillLink } from "@/components/ui/tab-pill"
 
 // Receipt uploads can take 5-15s on a slow phone connection (Blob put +
 // DB row creation). Server actions inherit maxDuration from the page they
@@ -67,17 +68,13 @@ export default async function ReceiptsPage({
           ["projects", "Projects"],
           ["catalog", "Catalog"],
         ] as const).map(([k, label]) => (
-          <Link
+          <TabPillLink
             key={k}
             href={k === "all" ? "/receipts" : `/receipts?filter=${k}`}
-            className={`px-2.5 py-1 rounded-full ${
-              filter === k
-                ? "bg-accent text-white"
-                : "bg-surface border border-border text-foreground-muted hover:bg-accent-soft"
-            }`}
+            active={filter === k}
           >
             {label}
-          </Link>
+          </TabPillLink>
         ))}
       </div>
 

@@ -338,7 +338,7 @@ export default async function SubcontractorDetailPage({
                         <form action={deletePayment.bind(null, p.id)}>
                           <ConfirmSubmitButton
                             confirmText="Delete this payment? This can't be undone."
-                            className="text-xs text-foreground-soft opacity-0 group-hover:opacity-100 hover:text-danger transition-all"
+                            className="text-xs text-foreground-soft opacity-0 group-hover:opacity-100 hover:text-danger transition-all [@media(hover:none)]:opacity-50"
                           >
                             ✕
                           </ConfirmSubmitButton>

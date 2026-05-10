@@ -930,7 +930,7 @@ function LineItemRow({
           <form action={deleteLineItem.bind(null, projectId, item.id)}>
             <button
               type="submit"
-              className="text-xs text-foreground-soft opacity-0 group-hover:opacity-100 hover:text-danger transition-all"
+              className="text-xs text-foreground-soft opacity-0 group-hover:opacity-100 hover:text-danger transition-all [@media(hover:none)]:opacity-50"
               title="Delete line item"
             >
               ✕

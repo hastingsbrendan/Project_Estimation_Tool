@@ -6,6 +6,7 @@ import { formatCurrency } from "@/lib/calc"
 import { ensureDefaultSpecialties } from "@/lib/seed-default-specialties"
 import { createSubcontractor } from "./actions"
 import { NewSubcontractorButton } from "./new-subcontractor-button"
+import { TabPillLink } from "@/components/ui/tab-pill"
 
 export default async function SubsListPage({
   searchParams,
@@ -75,27 +76,13 @@ export default async function SubsListPage({
         </div>
       </div>
 
-      <div className="flex items-center gap-2 text-xs">
-        <Link
-          href="/subs"
-          className={`px-2.5 py-1 rounded-full ${
-            !showArchived
-              ? "bg-accent text-white"
-              : "bg-surface border border-border text-foreground-muted hover:bg-accent-soft"
-          }`}
-        >
+      <div className="flex items-center gap-2">
+        <TabPillLink href="/subs" active={!showArchived}>
           Active
-        </Link>
-        <Link
-          href="/subs?archived=1"
-          className={`px-2.5 py-1 rounded-full ${
-            showArchived
-              ? "bg-accent text-white"
-              : "bg-surface border border-border text-foreground-muted hover:bg-accent-soft"
-          }`}
-        >
+        </TabPillLink>
+        <TabPillLink href="/subs?archived=1" active={showArchived}>
           Archived
-        </Link>
+        </TabPillLink>
       </div>
 
       {enriched.length === 0 ? (

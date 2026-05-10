@@ -8,6 +8,7 @@ import type {
 } from "../actions"
 import { TRADES } from "@/lib/catalog/trades"
 import { WarningChip } from "@/components/ui/warning-chip"
+import { Card } from "@/components/ui/card"
 
 /**
  * Per-row state the review screen tracks. Mirrors the three buckets but
@@ -258,10 +259,10 @@ export function CatalogUpdateReview({
 
   if (rows.length === 0) {
     return (
-      <div className="bg-surface border border-border rounded-lg p-5 text-sm text-foreground-soft italic">
+      <Card className="text-sm text-foreground-soft italic">
         Nothing parsed from this receipt yet. Re-parse with AI, or enter items
         manually below.
-      </div>
+      </Card>
     )
   }
 

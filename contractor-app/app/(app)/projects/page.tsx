@@ -3,6 +3,7 @@ import { auth } from "@/auth"
 import { prisma } from "@/lib/db"
 import { calcEstimate, formatCurrency } from "@/lib/calc"
 import { StatusBadge } from "@/components/ui/status-badge"
+import { TabPillLink } from "@/components/ui/tab-pill"
 
 export default async function ProjectsPage({
   searchParams,
@@ -47,28 +48,17 @@ export default async function ProjectsPage({
         )}
       </div>
 
-      {/* Tabs */}
-      <div className="flex items-center gap-3 mb-6 text-sm border-b border-border">
-        <Link
-          href="/projects"
-          className={`pb-2 -mb-px border-b-2 ${
-            !showArchived
-              ? "border-accent text-foreground font-medium"
-              : "border-transparent text-foreground-muted hover:text-foreground"
-          }`}
-        >
+      {/* Filter pills — same dialect as Receipts / Subs / Catalog. */}
+      <div className="flex items-center gap-2 mb-6">
+        <TabPillLink href="/projects" active={!showArchived}>
           Active
-        </Link>
-        <Link
-          href="/projects?view=archived"
-          className={`pb-2 -mb-px border-b-2 ${
-            showArchived
-              ? "border-accent text-foreground font-medium"
-              : "border-transparent text-foreground-muted hover:text-foreground"
-          }`}
-        >
-          Archived {archivedCount > 0 && <span className="text-foreground-soft tabular-nums">({archivedCount})</span>}
-        </Link>
+        </TabPillLink>
+        <TabPillLink href="/projects?view=archived" active={showArchived}>
+          Archived
+          {archivedCount > 0 && (
+            <span className="opacity-60 tabular-nums">({archivedCount})</span>
+          )}
+        </TabPillLink>
       </div>
 
       {projects.length === 0 ? (
