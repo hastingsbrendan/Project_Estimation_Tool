@@ -4,6 +4,15 @@ on:
   push:
     branches: [main]
   pull_request:
+  # Manual trigger — used for the one-time --baseline run (records the
+  # hand-applied migration history on Turso without re-executing it).
+  # GitHub → Actions → CI → Run workflow → check "baseline".
+  workflow_dispatch:
+    inputs:
+      baseline:
+        description: "Run migrate-prod with --baseline (one-time setup)"
+        type: boolean
+        default: false
 
 jobs:
   app:
@@ -58,7 +67,7 @@ jobs:
     # Only after tests pass, only on main, and only when the repo has
     # the Turso secrets configured (PRs from forks won't).
     needs: [app]
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -80,4 +89,8 @@ jobs:
             echo "::warning::TURSO_DATABASE_URL secret not set — skipping prod migration. Schema changes must be applied manually until secrets are configured."
             exit 0
           fi
-          npx tsx scripts/migrate-prod.ts
+          if [ "${{ github.event_name == 'workflow_dispatch' && inputs.baseline }}" = "true" ]; then
+            npx tsx scripts/migrate-prod.ts --baseline
+          else
+            npx tsx scripts/migrate-prod.ts
+          fi
