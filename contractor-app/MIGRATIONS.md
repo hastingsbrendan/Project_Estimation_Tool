@@ -14,7 +14,10 @@ the unit + E2E suites pass.
    - `TURSO_DATABASE_URL` — the `libsql://…` URL
    - `TURSO_AUTH_TOKEN` — a Turso auth token
 2. Baseline the existing prod DB (records the already-hand-applied
-   migrations without re-running them):
+   migrations without re-running them). ⚠️ Baseline records EVERY
+   migration on disk as applied — so before running it, confirm
+   `/api/health` reports `schema: "ok"` (apply any missing SQL by
+   hand first). Baselining a drifted DB makes the tracker lie:
 
    ```bash
    DATABASE_URL=libsql://... DATABASE_AUTH_TOKEN=... \
