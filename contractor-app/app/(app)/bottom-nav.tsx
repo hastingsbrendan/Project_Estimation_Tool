@@ -20,9 +20,13 @@ import { usePathname } from "next/navigation"
  */
 
 const TABS = [
+  // Today replaced the second catalog tab: price-book maintenance is a
+  // monthly chore, but "what needs my attention" is a daily one. The
+  // Services catalog is reachable via the Materials ↔ Services toggle
+  // on the catalog pages (and the desktop top nav).
+  { href: "/today", label: "Today", icon: "☀️" },
   { href: "/projects", label: "Projects", icon: "📋" },
-  { href: "/catalog/materials", label: "Materials", icon: "📦" },
-  { href: "/catalog/services", label: "Services", icon: "🔧" },
+  { href: "/catalog/materials", label: "Catalog", icon: "📦" },
   { href: "/receipts", label: "Receipts", icon: "🧾" },
   { href: "/subs", label: "Subs", icon: "👥" },
 ] as const
@@ -37,17 +41,16 @@ export function BottomNav() {
     >
       <ul className="grid grid-cols-5">
         {TABS.map((tab) => {
-          // Match exact path OR a subroute, except for "/projects" which
-          // we want to NOT match "/projects/[id]/materials" (that should
-          // light up Materials, not Projects). Easiest way: only match
-          // exact for top-level routes other than "/", let the more
-          // specific routes win.
+          // Match exact path OR a subroute. The Catalog tab owns both
+          // /catalog/materials and /catalog/services; Projects owns its
+          // subroutes including the project materials list.
           const active =
             pathname === tab.href ||
-            (tab.href !== "/projects" && pathname.startsWith(tab.href + "/")) ||
-            (tab.href === "/projects" &&
-              pathname.startsWith("/projects/") &&
-              !pathname.endsWith("/materials"))
+            (tab.href === "/catalog/materials" && pathname.startsWith("/catalog")) ||
+            (tab.href === "/projects" && pathname.startsWith("/projects/")) ||
+            (tab.href !== "/projects" &&
+              tab.href !== "/catalog/materials" &&
+              pathname.startsWith(tab.href + "/"))
           return (
             <li key={tab.href}>
               <Link

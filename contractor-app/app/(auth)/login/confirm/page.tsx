@@ -40,7 +40,7 @@ export default async function ConfirmSignInPage({
   const sp = await searchParams
   const token = typeof sp.token === "string" ? sp.token : ""
   const email = typeof sp.email === "string" ? sp.email : ""
-  const callbackUrl = typeof sp.callbackUrl === "string" ? sp.callbackUrl : "/projects"
+  const callbackUrl = typeof sp.callbackUrl === "string" ? sp.callbackUrl : "/today"
 
   // Log the hit so we can correlate scanner traffic vs human traffic
   // and see how often this fix is actually saving sessions.

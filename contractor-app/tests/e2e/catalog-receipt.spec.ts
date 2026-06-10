@@ -28,8 +28,11 @@ test.describe("catalog-update receipts", () => {
     const f = fixtures()
     await page.goto(`/receipts/${f.catalogReceipt.receiptId}`)
 
-    // Header has the Catalog pill
-    await expect(page.getByText("Catalog", { exact: true })).toBeVisible()
+    // Header has the Catalog pill. Scoped to the main landmark because
+    // the mobile bottom nav also carries a "Catalog" tab label.
+    await expect(
+      page.getByRole("main").getByText("Catalog", { exact: true }),
+    ).toBeVisible()
 
     // Likely matches section visible — drywall row
     await expect(page.getByText(/Likely matches \(\d+\)/i)).toBeVisible()

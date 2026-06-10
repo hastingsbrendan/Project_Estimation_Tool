@@ -14,9 +14,9 @@
  * a prod DB that predates the _applied_migrations table, a missing
  * probe column means the newest migration was never applied.
  */
-export const LATEST_MIGRATION = "20260516000000_w5_price_verified_at"
+export const LATEST_MIGRATION = "20260517000000_w6_milestones"
 
 export const LATEST_COLUMN_PROBE = {
-  table: "CatalogItem",
-  column: "priceVerifiedAt",
+  table: "Milestone",
+  column: "id",
 } as const

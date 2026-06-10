@@ -26,6 +26,7 @@ import { AddLineItemForm } from "./catalog-picker"
 import { CatalogEmptyBanner } from "./catalog-empty-banner"
 import { loadDefaultCatalog } from "../../catalog/actions"
 import { ProjectSubsSection } from "./project-subs-section"
+import { PaymentsSection } from "./payments-section"
 import {
   addSubToProject,
   quickCreateSubAndAssign,
@@ -103,6 +104,7 @@ export default async function ProjectDetailPage({
         subcontractorRatings: {
           select: { subcontractorId: true },
         },
+        milestones: { orderBy: { order: "asc" } },
       },
     }),
     prisma.catalogItem.findMany({
@@ -158,6 +160,13 @@ export default async function ProjectDetailPage({
       fills.push({ label: `${room.name} · perimeter ${m.perimeterFt} lf`, qty: m.perimeterFt, unit: "lf" })
     return fills
   })
+
+  // Job P&L inputs: what's actually been spent against this job.
+  const receiptsTotal = project.receipts.reduce((sum, r) => sum + (r.total ?? 0), 0)
+  const subPaymentsTotal = project.subcontractorPayments.reduce(
+    (sum, p) => sum + p.amount,
+    0,
+  )
 
   const catalogIsEmpty = catalog.length === 0
 
@@ -422,6 +431,15 @@ export default async function ProjectDetailPage({
       </section>
 
       {/* Subcontractors on this project */}
+      <PaymentsSection
+        projectId={project.id}
+        estimateTotal={totals.total}
+        receiptsTotal={receiptsTotal}
+        subPaymentsTotal={subPaymentsTotal}
+        milestones={project.milestones}
+        hasPaymentScheduleText={!!project.paymentSchedule?.trim()}
+      />
+
       <section>
         <ProjectSubsSection
           projectId={project.id}

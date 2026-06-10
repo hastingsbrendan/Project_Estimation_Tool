@@ -10,6 +10,10 @@ Production runs on Turso (libsql). `prisma migrate deploy` does NOT speak `libsq
 
 When you add a migration, ALSO bump `LATEST_MIGRATION` in `lib/migrations-meta.ts` — a unit test fails if you forget, and `/api/health` uses it to report `schema: "drift"` when prod is behind.
 
+# NEVER add a route-group-level loading.tsx
+
+A `loading.tsx` at the `(app)` group level silently breaks every in-place server-action re-render in the group on this Next version (16.2.5): the action runs and revalidates, but the client never commits the updated tree — forms look dead until a manual reload. No console errors. Cost us ~12 hours of broken prod inline edits (discovered via E2E in CI). Skeletons are opt-in per route and only on read-only routes with no revalidate-style form actions (see `app/(app)/today/loading.tsx`).
+
 # Errors are observable via /api/health and logged scopes
 
 `lib/log.ts` exposes `logInfo` / `logWarn` / `logError`. When you add a server action or route handler that does anything non-trivial (DB write, external API, upload, PDF render), wrap the work in a try/catch + `logError(SCOPE, e, context)`. The scope is what makes the log line searchable in Vercel.

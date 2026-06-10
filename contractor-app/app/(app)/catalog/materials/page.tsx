@@ -13,6 +13,7 @@ import {
 } from "../actions"
 import { CatalogTable } from "../catalog-table"
 import { Card } from "@/components/ui/card"
+import { TabPillLink } from "@/components/ui/tab-pill"
 
 export default async function MaterialsCatalogPage() {
   const session = await auth()
@@ -46,6 +47,14 @@ export default async function MaterialsCatalogPage() {
 
   return (
     <div className="space-y-6">
+      <div className="flex items-center gap-2">
+        <TabPillLink href="/catalog/materials" active>
+          Materials
+        </TabPillLink>
+        <TabPillLink href="/catalog/services" active={false}>
+          Services
+        </TabPillLink>
+      </div>
       <div className="flex items-baseline justify-between">
         <div>
           <h1 className="text-xl font-bold text-foreground">Material catalog</h1>

@@ -13,7 +13,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     <div className="min-h-screen flex flex-col">
       <header className="bg-surface border-b border-border sticky top-0 z-10">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-4">
-          <Link href="/projects" className="flex items-center gap-2 hover:opacity-80 transition-opacity shrink-0">
+          <Link href="/today" className="flex items-center gap-2 hover:opacity-80 transition-opacity shrink-0">
             <span className="inline-flex items-center justify-center w-7 h-7 bg-accent rounded-md text-white text-sm">
               🔨
             </span>
@@ -24,6 +24,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
               wrap or overflow, and tap targets are uncomfortably
               cramped even on tablet. */}
           <nav className="hidden sm:flex items-center gap-1 text-sm">
+            <Link
+              href="/today"
+              className="px-3 py-2 rounded-md text-foreground-muted hover:bg-accent-soft hover:text-foreground transition-colors"
+            >
+              Today
+            </Link>
             <Link
               href="/projects"
               className="px-3 py-2 rounded-md text-foreground-muted hover:bg-accent-soft hover:text-foreground transition-colors"

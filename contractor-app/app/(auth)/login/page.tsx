@@ -41,7 +41,7 @@ function LoginForm() {
       const result = await signIn("nodemailer", {
         email: targetEmail,
         redirect: false,
-        callbackUrl: params.get("callbackUrl") ?? "/projects",
+        callbackUrl: params.get("callbackUrl") ?? "/today",
       })
       if (result?.error) {
         setError("Something went wrong. Please try again.")

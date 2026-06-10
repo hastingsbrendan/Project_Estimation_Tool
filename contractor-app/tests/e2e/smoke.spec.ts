@@ -22,6 +22,7 @@ test.describe("smoke: authed pages", () => {
   })
 
   const pages = [
+    { name: "today dashboard", path: () => "/today" },
     { name: "projects list", path: () => "/projects" },
     { name: "new project form", path: () => "/projects/new" },
     { name: "project detail", path: () => `/projects/${fixtures().smoke.projectId}` },
