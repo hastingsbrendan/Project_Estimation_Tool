@@ -10,9 +10,13 @@ on:
   workflow_dispatch:
     inputs:
       baseline:
-        description: "Run migrate-prod with --baseline (one-time setup)"
+        description: "Run migrate-prod with --baseline (records ALL migrations as applied — only when /api/health says schema: ok)"
         type: boolean
         default: false
+      baseline_through:
+        description: "Migration name to baseline through (records up to it, APPLIES everything newer). Use /api/health schemaDetail to find the watermark."
+        type: string
+        default: ""
 
 jobs:
   app:
@@ -91,6 +95,8 @@ jobs:
           fi
           if [ "${{ github.event_name == 'workflow_dispatch' && inputs.baseline }}" = "true" ]; then
             npx tsx scripts/migrate-prod.ts --baseline
+          elif [ -n "${{ github.event_name == 'workflow_dispatch' && inputs.baseline_through || '' }}" ]; then
+            npx tsx scripts/migrate-prod.ts --baseline-through="${{ inputs.baseline_through }}"
           else
             npx tsx scripts/migrate-prod.ts
           fi

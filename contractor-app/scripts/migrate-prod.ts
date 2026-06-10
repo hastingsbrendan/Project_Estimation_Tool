@@ -76,6 +76,14 @@ async function main() {
     process.exit(2)
   }
   const baseline = process.argv.includes("--baseline")
+  // --baseline-through=<migration_name>: record history up to (and
+  // including) the named migration WITHOUT executing it, then APPLY
+  // everything newer for real. For onboarding a DB whose schema is
+  // known-current through a specific point (check /api/health's
+  // schemaDetail) but behind on newer migrations. Unlike plain
+  // --baseline, this never records a migration whose SQL didn't run.
+  const throughArg = process.argv.find((a) => a.startsWith("--baseline-through="))
+  const baselineThrough = throughArg?.split("=")[1] ?? null
   const client = createClient({
     url,
     authToken: process.env.DATABASE_AUTH_TOKEN,
@@ -83,6 +91,14 @@ async function main() {
 
   const migrations = listMigrations()
   console.log(`[migrate] ${migrations.length} migrations on disk; target: ${url.replace(/\/\/.*@/, "//***@")}`)
+
+  if (baselineThrough && !migrations.some((m) => m.name === baselineThrough)) {
+    console.error(
+      `[migrate] --baseline-through=${baselineThrough} doesn't match any migration on disk. Names:\n` +
+        migrations.map((m) => `  ${m.name}`).join("\n"),
+    )
+    process.exit(2)
+  }
 
   // Does the tracking table exist?
   const trackingExists =
@@ -99,11 +115,14 @@ async function main() {
           "SELECT name FROM sqlite_master WHERE type='table' AND name='User'",
         )
       ).rows.length > 0
-    if (dbHasTables && !baseline) {
+    if (dbHasTables && !baseline && !baselineThrough) {
       console.error(
         "[migrate] REFUSING: this DB has tables but no _applied_migrations " +
           "tracking. If its schema is already current, run once with " +
-          "--baseline to record existing migrations without executing them.",
+          "--baseline to record existing migrations without executing them. " +
+          "If it's current only up to a known migration, use " +
+          "--baseline-through=<name> to record up to that point and apply " +
+          "the rest (check /api/health schemaDetail for the watermark).",
       )
       process.exit(1)
     }
@@ -119,7 +138,12 @@ async function main() {
   for (const m of migrations) {
     if (applied.has(m.name)) continue
 
-    if (baseline) {
+    // Record-without-executing when in full-baseline mode, or when in
+    // baseline-through mode and this migration is at/before the
+    // watermark (names are timestamp-prefixed → lexicographic order).
+    const recordOnly =
+      baseline || (baselineThrough != null && m.name <= baselineThrough)
+    if (recordOnly) {
       await client.execute({
         sql: "INSERT INTO _applied_migrations (name, applied_at) VALUES (?, ?)",
         args: [m.name, new Date().toISOString()],
