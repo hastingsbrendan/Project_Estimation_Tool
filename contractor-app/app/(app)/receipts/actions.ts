@@ -573,9 +573,15 @@ export async function applyCatalogUpdates(
       for (const d of decisions) {
         if (d.action === "update-price") {
           // Scope on userId so a tampered catalogItemId can't write to
-          // another user's catalog.
-          const data: { unitPrice: number; hdSku?: string } = {
+          // another user's catalog. A receipt price IS verification —
+          // stamp it so stale prices are distinguishable later.
+          const data: {
+            unitPrice: number
+            hdSku?: string
+            priceVerifiedAt: Date
+          } = {
             unitPrice: Math.max(0, d.newPrice),
+            priceVerifiedAt: new Date(),
           }
           // SKU guardrail: never silently overwrite an existing
           // catalog SKU with a different one. Pure helper so we can
@@ -608,6 +614,8 @@ export async function applyCatalogUpdates(
               unitPrice: Math.max(0, d.price),
               kind: "material",
               hdSku: d.hdSku?.trim() || null,
+              // Born from a receipt → price is verified as of now.
+              priceVerifiedAt: new Date(),
             },
           })
           createdCount++

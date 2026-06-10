@@ -16,6 +16,7 @@ import {
   findBridgeTabId,
   relayFindAlternative,
   relayMatchMaterial,
+  relaySetSku,
   startCartRun,
 } from "./cart-runner"
 
@@ -95,6 +96,34 @@ async function handle(
         return {
           ok: false,
           error: e instanceof Error ? e.message : "match-material relay failed",
+        }
+      }
+    }
+
+    case "save-sku": {
+      const req = message as {
+        appOrigin: string
+        catalogItemId: string
+        sku: string
+      }
+      const bridgeTabId = await findBridgeTabId(req.appOrigin)
+      if (bridgeTabId == null) {
+        return {
+          ok: false,
+          error: "Contractor-app tab is closed — re-open it to continue.",
+        }
+      }
+      try {
+        await relaySetSku({
+          bridgeTabId,
+          catalogItemId: req.catalogItemId,
+          sku: req.sku,
+        })
+        return { ok: true }
+      } catch (e) {
+        return {
+          ok: false,
+          error: e instanceof Error ? e.message : "save-sku relay failed",
         }
       }
     }

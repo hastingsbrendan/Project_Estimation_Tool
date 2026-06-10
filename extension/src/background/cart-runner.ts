@@ -131,6 +131,7 @@ async function runPipeline(state: RunState): Promise<void> {
       type: "init-side-panel",
       projectName: payload.project.name,
       items: state.items,
+      appOrigin: state.meta.appOrigin,
     })
   } catch (e) {
     console.warn("[cart-runner] init-side-panel send failed", e)
@@ -232,6 +233,7 @@ async function pushPanelState(state: RunState, tabId: number): Promise<void> {
       type: "init-side-panel",
       projectName: state.payload?.project.name ?? null,
       items: state.items,
+      appOrigin: state.meta.appOrigin,
     })
   } catch {
     // tab may have navigated again; next ready tick will re-push
@@ -364,6 +366,28 @@ export async function relayMatchMaterial(args: {
     throw new Error(`match-material ${res.status}: ${res.body.slice(0, 200)}`)
   }
   return JSON.parse(res.body) as MatchResult
+}
+
+/**
+ * Persist a user-confirmed SKU on the catalog item. Called when the
+ * contractor taps a candidate in the side panel's review list — the
+ * learning loop that makes the next cart run deterministic for this
+ * material.
+ */
+export async function relaySetSku(args: {
+  bridgeTabId: number
+  catalogItemId: string
+  sku: string
+}): Promise<{ ok: true }> {
+  const res = await fetchOnAppDomain(args.bridgeTabId, {
+    method: "POST",
+    path: "/api/v1/catalog/set-sku",
+    body: { catalogItemId: args.catalogItemId, sku: args.sku },
+  })
+  if (!res.ok) {
+    throw new Error(`set-sku ${res.status}: ${res.body.slice(0, 200)}`)
+  }
+  return { ok: true }
 }
 
 export async function relayFindAlternative(args: {

@@ -39,12 +39,15 @@ type PanelState = {
   items: RunItem[]
   phase: "idle" | "running" | "done" | "error"
   errorMessage?: string
+  /** Origin of the contractor-app tab — needed for save-sku relays. */
+  appOrigin: string | null
 }
 
 let panelState: PanelState = {
   projectName: null,
   items: [],
   phase: "idle",
+  appOrigin: null,
 }
 
 function ensurePanel(): ShadowRoot {
@@ -89,7 +92,9 @@ function ensurePanel(): ShadowRoot {
       .pill-error { background: #fee2e2; color: #991b1b; }
       .pill-no-match { background: #f4f4f5; color: #71717a; }
       .alt-block { margin-top: 4px; padding: 6px; background: #fef3c7; border-radius: 4px; }
-      .alt-row { display: flex; justify-content: space-between; align-items: center; padding: 2px 0; }
+      .alt-row { display: flex; justify-content: space-between; align-items: center; gap: 6px; padding: 2px 0; }
+      .save-sku { background: #16a34a; color: white; border: none; border-radius: 4px; padding: 2px 6px; font-size: 10px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+      .save-sku:hover { background: #15803d; }
       a { color: #ea580c; text-decoration: none; }
       a:hover { text-decoration: underline; }
     </style>
@@ -105,7 +110,45 @@ function ensurePanel(): ShadowRoot {
   root.querySelector('[data-action="close"]')?.addEventListener("click", () => {
     host?.remove()
   })
+  // Delegated handler for per-candidate "Save SKU" buttons in review
+  // rows. Re-rendering replaces innerHTML, so per-button listeners
+  // would be lost — delegation on the stable <ul> survives.
+  root.querySelector('[data-slot="items"]')?.addEventListener("click", (e) => {
+    const btn = (e.target as HTMLElement).closest<HTMLElement>("[data-save-sku]")
+    if (!btn) return
+    const itemIdx = Number(btn.dataset.itemIdx)
+    const candIdx = Number(btn.dataset.candIdx)
+    void saveSkuFromReview(itemIdx, candIdx)
+  })
   return root
+}
+
+/**
+ * The learning loop: contractor taps the right product in the review
+ * list → SKU is written back to the catalog item → next cart run
+ * navigates straight to that PDP instead of fuzzy-matching.
+ */
+async function saveSkuFromReview(itemIdx: number, candIdx: number) {
+  const item = panelState.items[itemIdx]
+  if (!item || item.status.kind !== "review") return
+  const candidate = item.status.candidates[candIdx]
+  const catalogItemId = item.material.catalogItemId
+  if (!candidate?.sku || !catalogItemId || !panelState.appOrigin) return
+
+  const res = await chrome.runtime.sendMessage({
+    type: "save-sku",
+    appOrigin: panelState.appOrigin,
+    catalogItemId,
+    sku: candidate.sku,
+  })
+  if (res && (res as { ok?: boolean }).ok) {
+    setItemStatus(itemIdx, { kind: "sku-saved", candidate })
+  } else {
+    setItemStatus(itemIdx, {
+      kind: "error",
+      message: (res as { error?: string })?.error ?? "Couldn't save SKU",
+    })
+  }
 }
 
 function pillForStatus(s: RunItemStatus): string {
@@ -126,18 +169,42 @@ function pillForStatus(s: RunItemStatus): string {
       return `<span class="pill pill-no-match">no match</span>`
     case "error":
       return `<span class="pill pill-error">error</span>`
+    case "sku-saved":
+      return `<span class="pill pill-added">✓ SKU saved</span>`
   }
 }
 
-function statusDetail(s: RunItemStatus): string {
+function statusDetail(s: RunItemStatus, itemIdx: number, material: Material): string {
   switch (s.kind) {
     case "matched":
     case "added":
       return `<a href="${s.candidate.url}" target="_blank">${escapeHtml(s.candidate.title)}</a>${
         s.kind === "matched" ? ` · ${(s.confidence * 100).toFixed(0)}%` : ""
       }`
-    case "review":
-      return `${escapeHtml(s.reasoning)}`
+    case "review": {
+      // Tappable candidate list — picking one writes the SKU back to
+      // the catalog (only possible when the material maps to a single
+      // catalog row AND the candidate has a scraped SKU).
+      const canSave = !!material.catalogItemId
+      const rows = s.candidates
+        .slice(0, 5)
+        .map(
+          (c, candIdx) =>
+            `<div class="alt-row"><a href="${escapeHtml(c.url)}" target="_blank">${escapeHtml(c.title)}</a><span>${
+              c.price != null ? `$${c.price.toFixed(2)}` : "—"
+            }</span>${
+              canSave && c.sku
+                ? `<button type="button" class="save-sku" data-save-sku data-item-idx="${itemIdx}" data-cand-idx="${candIdx}">✓ This one</button>`
+                : ""
+            }</div>`,
+        )
+        .join("")
+      return `${escapeHtml(s.reasoning)}<div class="alt-block"><strong>Pick the right product${
+        canSave ? " (saves SKU for next time)" : ""
+      }:</strong>${rows}</div>`
+    }
+    case "sku-saved":
+      return `${escapeHtml(s.candidate.title)} — saved to catalog. Next cart run goes straight to this product.`
     case "oos":
       return `${escapeHtml(s.candidate.title)}${
         s.alternatives && s.alternatives.length > 0
@@ -197,12 +264,15 @@ function renderPanel() {
           : summary
   }
   if (itemsSlot) {
+    // Note: every dynamic value rendered here passes through escapeHtml
+    // (titles, units, reasoning, URLs in attribute position) — the HTML
+    // skeleton itself is static template strings.
     itemsSlot.innerHTML = panelState.items
       .map(
-        (it) => `<li>
+        (it, itemIdx) => `<li>
           ${pillForStatus(it.status)}
           <span class="desc">${escapeHtml(it.material.description)}</span>
-          <div class="meta">${it.material.quantity} ${escapeHtml(it.material.unit)} · ${statusDetail(it.status)}</div>
+          <div class="meta">${it.material.quantity} ${escapeHtml(it.material.unit)} · ${statusDetail(it.status, itemIdx, it.material)}</div>
         </li>`,
       )
       .join("")
@@ -669,11 +739,16 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
 
   if (m.type === "init-side-panel") {
-    const init = message as { projectName: string; items: RunItem[] }
+    const init = message as {
+      projectName: string
+      items: RunItem[]
+      appOrigin?: string
+    }
     panelState = {
       projectName: init.projectName,
       items: init.items,
       phase: "running",
+      appOrigin: init.appOrigin ?? panelState.appOrigin,
     }
     renderPanel()
     sendResponse({ ok: true })

@@ -3,9 +3,9 @@ import { notFound } from "next/navigation"
 import { auth } from "@/auth"
 import { prisma } from "@/lib/db"
 import { aggregateMaterials, materialsTotal } from "@/lib/materials"
-import { formatCurrency } from "@/lib/calc"
 import { CartBuilderButton } from "./cart-builder-button"
 import { Card } from "@/components/ui/card"
+import { MaterialsChecklist } from "./materials-checklist"
 
 export default async function MaterialsPage({
   params,
@@ -102,54 +102,19 @@ export default async function MaterialsPage({
           </p>
         </Card>
       ) : (
-        <div className="bg-surface border border-border rounded-lg overflow-hidden">
-          <div className="hidden sm:grid grid-cols-12 gap-2 px-4 py-2 bg-surface-muted text-[10px] font-medium uppercase tracking-wider text-foreground-soft">
-            <div className="col-span-5">Description</div>
-            <div className="col-span-1">HD SKU</div>
-            <div className="col-span-1 text-right">Qty</div>
-            <div className="col-span-1">Unit</div>
-            <div className="col-span-2 text-right">Est $/unit</div>
-            <div className="col-span-2 text-right">Subtotal</div>
-          </div>
-          <div className="divide-y divide-border">
-            {rows.map((r, i) => (
-              <div key={i} className="grid grid-cols-12 gap-2 px-4 py-2.5 text-sm items-baseline">
-                <div className="col-span-12 sm:col-span-5 text-foreground">{r.description}</div>
-                <div className="col-span-6 sm:col-span-1 text-xs tabular-nums">
-                  {r.hdSku ? (
-                    <a
-                      href={`https://www.homedepot.com/s/${encodeURIComponent(r.hdSku)}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-accent hover:underline"
-                      title="Open this SKU on Home Depot"
-                    >
-                      {r.hdSku}
-                    </a>
-                  ) : (
-                    <span className="text-foreground-soft">—</span>
-                  )}
-                </div>
-                <div className="col-span-3 sm:col-span-1 text-right tabular-nums text-foreground">
-                  {r.quantity}
-                </div>
-                <div className="col-span-3 sm:col-span-1 text-foreground-muted">{r.unit}</div>
-                <div className="col-span-3 sm:col-span-2 text-right tabular-nums text-foreground-muted">
-                  {formatCurrency(r.estUnitPrice)}
-                </div>
-                <div className="col-span-3 sm:col-span-2 text-right tabular-nums font-medium text-foreground">
-                  {formatCurrency(r.estSubtotal)}
-                </div>
-              </div>
-            ))}
-          </div>
-          <div className="border-t-2 border-foreground px-4 py-3 flex items-center justify-end gap-3">
-            <span className="text-sm font-semibold text-foreground">Estimated total:</span>
-            <span className="text-lg font-bold text-accent tabular-nums">
-              {formatCurrency(total)}
-            </span>
-          </div>
-        </div>
+        <MaterialsChecklist
+          projectId={project.id}
+          projectName={project.name}
+          rows={rows.map((r) => ({
+            description: r.description,
+            unit: r.unit,
+            quantity: r.quantity,
+            estUnitPrice: r.estUnitPrice,
+            estSubtotal: r.estSubtotal,
+            hdSku: r.hdSku,
+          }))}
+          total={total}
+        />
       )}
 
       <p className="text-xs text-foreground-soft italic">

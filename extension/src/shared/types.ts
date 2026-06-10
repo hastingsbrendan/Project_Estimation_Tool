@@ -17,6 +17,13 @@ export type Material = {
    * instead of fuzzy text matching. Null = fall back to description.
    */
   hdSku: string | null
+  /**
+   * Catalog item id when the material maps to exactly one catalog row.
+   * Enables the review flow's SKU write-back ("Save SKU" in the side
+   * panel → POST /api/v1/catalog/set-sku). Null = ambiguous mapping,
+   * write-back unavailable for this row.
+   */
+  catalogItemId: string | null
   notes: string | null
 }
 
@@ -61,6 +68,8 @@ export type RunItemStatus =
   | { kind: "added"; candidate: Candidate }
   | { kind: "no-match"; reasoning: string }
   | { kind: "error"; message: string }
+  /** User picked a candidate in the review list; SKU saved to catalog. */
+  | { kind: "sku-saved"; candidate: Candidate }
 
 export type RunItem = {
   material: Material

@@ -242,6 +242,10 @@ model CatalogItem {
   // straight to the PDP via SKU search instead of fuzzy text match.
   // Free-form string so we don't reject Lowe's / vendor SKUs later.
   hdSku       String?
+  // Last time this item's price was confirmed against a real receipt
+  // (set by applyCatalogUpdates). Null = never verified — the price is
+  // whatever was seeded/typed. Lets the UI surface stale prices later.
+  priceVerifiedAt DateTime?
   notes       String?
   archived    Boolean  @default(false)
   createdAt   DateTime @default(now())

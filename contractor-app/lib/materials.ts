@@ -17,6 +17,8 @@ export type LineItemForMaterials = {
   kind: string
   /** Looked up from the line item's catalogItemId if available. */
   hdSku?: string | null
+  /** The line item's own catalogItemId, for SKU write-back. */
+  catalogItemId?: string | null
 }
 
 export type MaterialRow = {
@@ -27,6 +29,13 @@ export type MaterialRow = {
   estSubtotal: number
   /** Home Depot SKU when the bucket resolves to a single known SKU. */
   hdSku: string | null
+  /**
+   * Catalog item id when the bucket resolves to exactly one. Lets the
+   * cart-builder's review flow write a confirmed SKU back to the catalog
+   * (the "match once, remember forever" learning loop). Same conflict
+   * rule as hdSku: mixed ids in a bucket → null.
+   */
+  catalogItemId: string | null
 }
 
 export function aggregateMaterials(
@@ -40,6 +49,7 @@ export function aggregateMaterials(
       quantity: number
       subtotal: number
       skus: Set<string>
+      catalogIds: Set<string>
     }
   >()
 
@@ -50,17 +60,21 @@ export function aggregateMaterials(
     if (!cur) {
       const skus = new Set<string>()
       if (li.hdSku) skus.add(li.hdSku)
+      const catalogIds = new Set<string>()
+      if (li.catalogItemId) catalogIds.add(li.catalogItemId)
       buckets.set(key, {
         description: li.description,
         unit: li.unit,
         quantity: li.quantity,
         subtotal: li.quantity * li.unitPrice,
         skus,
+        catalogIds,
       })
     } else {
       cur.quantity += li.quantity
       cur.subtotal += li.quantity * li.unitPrice
       if (li.hdSku) cur.skus.add(li.hdSku)
+      if (li.catalogItemId) cur.catalogIds.add(li.catalogItemId)
     }
   }
 
@@ -72,6 +86,7 @@ export function aggregateMaterials(
     // pulled the same line from different catalog rows; we don't have
     // a safe way to pick one, so we fall back to text search.
     const hdSku = b.skus.size === 1 ? [...b.skus][0]! : null
+    const catalogItemId = b.catalogIds.size === 1 ? [...b.catalogIds][0]! : null
     rows.push({
       description: b.description,
       unit: b.unit,
@@ -79,6 +94,7 @@ export function aggregateMaterials(
       estUnitPrice: round2(estUnitPrice),
       estSubtotal: round2(b.subtotal),
       hdSku,
+      catalogItemId,
     })
   }
   rows.sort((a, b) => a.description.localeCompare(b.description))

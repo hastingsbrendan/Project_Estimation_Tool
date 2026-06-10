@@ -84,6 +84,7 @@ export async function GET(
         unitPrice: li.unitPrice,
         kind: li.kind,
         hdSku: li.catalogItemId ? skuById.get(li.catalogItemId) ?? null : null,
+        catalogItemId: li.catalogItemId,
       })),
     )
 
@@ -103,6 +104,9 @@ export async function GET(
         // Surface the SKU when known; the extension uses it to skip
         // fuzzy text search and navigate straight to the PDP.
         hdSku: r.hdSku,
+        // Lets the extension's review flow write a user-confirmed SKU
+        // back to the catalog via /api/v1/catalog/set-sku.
+        catalogItemId: r.catalogItemId,
         notes: null as string | null,
       })),
       generatedAt: new Date().toISOString(),
