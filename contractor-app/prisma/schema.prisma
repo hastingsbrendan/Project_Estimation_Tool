@@ -17,13 +17,35 @@ model User {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  accounts       Account[]
-  sessions       Session[]
-  projects       Project[]
-  catalogItems   CatalogItem[]
-  receipts       Receipt[]
-  subcontractors Subcontractor[]
-  specialties    Specialty[]
+  accounts        Account[]
+  sessions        Session[]
+  projects        Project[]
+  catalogItems    CatalogItem[]
+  receipts        Receipt[]
+  subcontractors  Subcontractor[]
+  specialties     Specialty[]
+  businessProfile BusinessProfile?
+}
+
+/// Per-user business identity for client-facing surfaces (proposal page,
+/// proposal/invoice/materials PDFs). Replaces the CONTRACTOR_* env vars —
+/// required before anyone besides the original dogfooder uses the app.
+/// Missing fields simply don't render; lib/branding.ts merges defaults.
+model BusinessProfile {
+  id            String   @id @default(cuid())
+  userId        String   @unique
+  businessName  String?
+  tagline       String?
+  licenseNumber String?
+  phone         String?
+  email         String?
+  address       String?
+  logoUrl       String? // public Vercel Blob URL
+  logoPathname  String? // for delete via @vercel/blob
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Account {
@@ -191,6 +213,10 @@ model Photo {
   pathname  String // for delete via @vercel/blob
   filename  String
   caption   String?
+  // Opt-in: include this photo (with caption) on the client-facing
+  // proposal page + PDF. Default off — jobsite photos are often
+  // documentation (damage, meter readings) the client shouldn't see.
+  showOnProposal Boolean @default(false)
   size      Int? // bytes
   width     Int?
   height    Int?

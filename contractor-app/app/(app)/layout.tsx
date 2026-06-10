@@ -62,6 +62,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             </Link>
           </nav>
           <div className="flex items-center gap-3 shrink-0">
+            <Link
+              href="/settings"
+              className="text-foreground-muted hover:text-foreground transition-colors"
+              title="Business settings — branding on proposals & invoices"
+            >
+              ⚙
+            </Link>
             <span className="text-sm text-foreground-muted hidden md:block">{session.user?.email}</span>
             <form
               action={async () => {

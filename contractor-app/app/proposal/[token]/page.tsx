@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation"
 import { prisma } from "@/lib/db"
 import { calcEstimate, formatCurrency, lineItemTotal } from "@/lib/calc"
+import { getBrandingForUser } from "@/lib/branding"
 import { acceptProposal } from "./actions"
 import { SignForm } from "./sign-form"
 
@@ -8,20 +9,9 @@ export const metadata = {
   robots: { index: false, follow: false }, // don't index public share links
 }
 
-/**
- * Contractor business profile, sourced from env vars so the customer-facing
- * proposal page can display license #, address, phone, etc. without us
- * needing a "settings" page yet. Anything missing just doesn't render.
- */
-function getContractorProfile() {
-  return {
-    businessName: process.env.CONTRACTOR_BUSINESS_NAME ?? "Reliable Remodeling",
-    license: process.env.CONTRACTOR_LICENSE ?? null,
-    phone: process.env.CONTRACTOR_PHONE ?? null,
-    email: process.env.CONTRACTOR_EMAIL ?? null,
-    address: process.env.CONTRACTOR_ADDRESS ?? null,
-  }
-}
+// Business identity comes from the project owner's BusinessProfile
+// (set on /settings), falling back to the legacy CONTRACTOR_* env vars.
+// See lib/branding.ts.
 
 function fmtDate(d: Date): string {
   return d.toLocaleDateString("en-US", { dateStyle: "long" })
@@ -42,6 +32,12 @@ export default async function PublicProposalPage({
         include: { lineItems: { orderBy: { order: "asc" } } },
         orderBy: { order: "asc" },
       },
+      // Only photos the contractor explicitly opted onto the proposal —
+      // jobsite documentation stays internal by default.
+      photos: {
+        where: { showOnProposal: true },
+        orderBy: { order: "asc" },
+      },
     },
   })
   if (!project) notFound()
@@ -59,7 +55,15 @@ export default async function PublicProposalPage({
     taxRate: project.taxRate,
   })
 
-  const contractor = getContractorProfile()
+  const branding = await getBrandingForUser(project.userId)
+  const contractor = {
+    businessName: branding.businessName,
+    license: branding.licenseNumber,
+    phone: branding.phone,
+    email: branding.email,
+    address: branding.address,
+    logoUrl: branding.logoUrl,
+  }
   // Date logic: proposalDate is when the contractor first sent it (or, if
   // they never used the email feature, when the project was created).
   // validUntil = proposalDate + validForDays.
@@ -76,7 +80,16 @@ export default async function PublicProposalPage({
     <div className="min-h-screen bg-background">
       <header className="bg-surface border-b border-border">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 py-5 flex items-start justify-between gap-4 flex-wrap">
-          <div>
+          <div className="flex items-start gap-3">
+            {contractor.logoUrl && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={contractor.logoUrl}
+                alt={`${contractor.businessName} logo`}
+                className="h-12 w-12 object-contain shrink-0"
+              />
+            )}
+            <div>
             <div className="text-sm font-bold tracking-widest text-foreground">
               {contractor.businessName.toUpperCase()}
             </div>
@@ -90,6 +103,7 @@ export default async function PublicProposalPage({
                 </div>
               )}
               {contractor.license && <div>License #{contractor.license}</div>}
+            </div>
             </div>
           </div>
           <a
@@ -229,6 +243,32 @@ export default async function PublicProposalPage({
                 <p className="text-foreground mt-0.5">{project.estDuration}</p>
               </div>
             )}
+          </section>
+        )}
+
+        {project.photos.length > 0 && (
+          <section>
+            <h2 className="text-sm font-bold uppercase tracking-widest text-foreground border-b border-border pb-2 mb-3">
+              Site photos
+            </h2>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              {project.photos.map((photo) => (
+                <figure key={photo.id} className="space-y-1">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={photo.url}
+                    alt={photo.caption ?? "Site photo"}
+                    className="w-full aspect-[4/3] object-cover rounded-lg border border-border"
+                    loading="lazy"
+                  />
+                  {photo.caption && (
+                    <figcaption className="text-xs text-foreground-muted">
+                      {photo.caption}
+                    </figcaption>
+                  )}
+                </figure>
+              ))}
+            </div>
           </section>
         )}
 

@@ -30,6 +30,7 @@ export async function GET(
           include: { lineItems: { orderBy: { order: "asc" } } },
           orderBy: { order: "asc" },
         },
+        photos: { where: { showOnProposal: true }, orderBy: { order: "asc" } },
       },
     })
     if (!project) return new Response("Not found", { status: 404 })
@@ -60,6 +61,7 @@ export async function GET(
           })),
         })),
         generatedAt: new Date(),
+        photos: project.photos.map((p) => ({ url: p.url, caption: p.caption })),
       }),
     )
 

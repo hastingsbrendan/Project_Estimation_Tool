@@ -19,7 +19,7 @@ import {
   updateProjectMeta,
 } from "./actions"
 import { addRoom, updateRoom, deleteRoom } from "./room-actions"
-import { uploadPhoto, deletePhoto, updatePhotoCaption } from "./photo-actions"
+import { uploadPhoto, deletePhoto, updatePhotoCaption, togglePhotoOnProposal } from "./photo-actions"
 import { AutoSaveForm } from "./auto-form"
 import { ConfirmSubmitButton } from "../../confirm-submit-button"
 import { AddLineItemForm } from "./catalog-picker"
@@ -27,6 +27,8 @@ import { CatalogEmptyBanner } from "./catalog-empty-banner"
 import { loadDefaultCatalog } from "../../catalog/actions"
 import { ProjectSubsSection } from "./project-subs-section"
 import { PaymentsSection } from "./payments-section"
+import { VoiceCapture } from "./voice-capture"
+import { draftFromTranscript, applyDraft } from "./voice-actions"
 import {
   addSubToProject,
   quickCreateSubAndAssign,
@@ -423,10 +425,12 @@ export default async function ProjectDetailPage({
             size: p.size,
             width: p.width,
             height: p.height,
+            showOnProposal: p.showOnProposal,
           }))}
           uploadAction={uploadPhoto.bind(null, project.id)}
           deleteAction={deletePhoto.bind(null, project.id)}
           updateCaptionAction={updatePhotoCaption.bind(null, project.id)}
+          toggleOnProposalAction={togglePhotoOnProposal.bind(null, project.id)}
         />
       </section>
 
@@ -560,6 +564,13 @@ export default async function ProjectDetailPage({
             refreshableCount={refreshableCount}
             totalLinked={linkedLineItems.length}
             action={refreshPricesFromCatalog.bind(null, project.id)}
+          />
+        </div>
+
+        <div className="mb-4">
+          <VoiceCapture
+            draftAction={draftFromTranscript.bind(null, project.id)}
+            applyAction={applyDraft.bind(null, project.id)}
           />
         </div>
 

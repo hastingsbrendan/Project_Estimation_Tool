@@ -109,3 +109,26 @@ export async function updatePhotoCaption(
   })
   revalidatePath(`/projects/${projectId}`)
 }
+
+/**
+ * Flip whether a photo appears on the client-facing proposal
+ * (public share page + PDF). Off by default — jobsite photos are
+ * often internal documentation the client shouldn't see.
+ */
+export async function togglePhotoOnProposal(
+  projectId: string,
+  photoId: string,
+): Promise<void> {
+  await requireProject(projectId)
+  const photo = await prisma.photo.findFirst({
+    where: { id: photoId, projectId },
+    select: { showOnProposal: true },
+  })
+  if (!photo) return
+  await prisma.photo.updateMany({
+    where: { id: photoId, projectId },
+    data: { showOnProposal: !photo.showOnProposal },
+  })
+  revalidatePath(`/projects/${projectId}`)
+  revalidatePath(`/projects/${projectId}/proposal`)
+}

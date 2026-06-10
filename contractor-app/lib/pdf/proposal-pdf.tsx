@@ -127,6 +127,22 @@ const styles = StyleSheet.create({
     fontSize: 9,
     color: BRAND.softHex,
   },
+  // Site photos — two-up grid; wrap={false} per cell keeps an image
+  // and its caption from splitting across a page break.
+  photoGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginBottom: 8,
+  },
+  photoCell: { width: "48%" },
+  photoImg: {
+    width: "100%",
+    height: 160,
+    objectFit: "cover",
+    borderRadius: 4,
+  },
+  photoCaption: { fontSize: 8, color: BRAND.mutedHex, marginTop: 3 },
   // Footer
   footer: {
     position: "absolute",
@@ -154,6 +170,7 @@ export function ProposalPdf({
   project,
   sections,
   generatedAt,
+  photos = [],
 }: {
   project: {
     name: string
@@ -170,6 +187,12 @@ export function ProposalPdf({
   }
   sections: SectionForPdf[]
   generatedAt: Date
+  /**
+   * Photos flagged showOnProposal. Remote Vercel Blob URLs — react-pdf
+   * fetches them during server-side render. Optional with a default so
+   * call sites that don't thread photos keep working.
+   */
+  photos?: Array<{ url: string; caption: string | null }>
 }) {
   const allLineItems = sections.flatMap((s) =>
     s.lineItems.map((li) => ({
@@ -299,6 +322,23 @@ export function ProposalPdf({
             <Text style={styles.grandValue}>{formatCurrency(totals.total)}</Text>
           </View>
         </View>
+
+        {photos.length > 0 && (
+          <>
+            <Text style={styles.sectionHeading}>Site photos</Text>
+            <View style={styles.photoGrid}>
+              {photos.map((p, i) => (
+                <View key={i} style={styles.photoCell} wrap={false}>
+                  {/* eslint-disable-next-line jsx-a11y/alt-text */}
+                  <Image style={styles.photoImg} src={p.url} />
+                  {p.caption ? (
+                    <Text style={styles.photoCaption}>{p.caption}</Text>
+                  ) : null}
+                </View>
+              ))}
+            </View>
+          </>
+        )}
 
         {project.exclusions && (
           <>

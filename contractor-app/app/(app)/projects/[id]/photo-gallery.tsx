@@ -12,6 +12,7 @@ export type PhotoView = {
   size: number | null
   width: number | null
   height: number | null
+  showOnProposal: boolean
 }
 
 export function PhotoGallery({
@@ -19,11 +20,13 @@ export function PhotoGallery({
   uploadAction,
   deleteAction,
   updateCaptionAction,
+  toggleOnProposalAction,
 }: {
   photos: PhotoView[]
   uploadAction: (formData: FormData) => Promise<{ ok: boolean; error?: string }>
   deleteAction: (photoId: string) => Promise<void>
   updateCaptionAction: (photoId: string, formData: FormData) => Promise<void>
+  toggleOnProposalAction: (photoId: string) => Promise<void>
 }) {
   const [error, setError] = useState<string>("")
   const [uploading, startUpload] = useTransition()
@@ -67,6 +70,7 @@ export function PhotoGallery({
                 photo={photo}
                 onOpen={() => setLightboxId(photo.id)}
                 onDelete={() => deleteAction(photo.id)}
+                onToggleProposal={() => toggleOnProposalAction(photo.id)}
               />
             ))}
             <button
@@ -112,12 +116,15 @@ function PhotoTile({
   photo,
   onOpen,
   onDelete,
+  onToggleProposal,
 }: {
   photo: PhotoView
   onOpen: () => void
   onDelete: () => Promise<void>
+  onToggleProposal: () => Promise<void>
 }) {
   const [pending, startTransition] = useTransition()
+  const [toggling, startToggle] = useTransition()
   return (
     <div className="relative group aspect-square bg-surface border border-border rounded-lg overflow-hidden">
       <button
@@ -139,6 +146,26 @@ function PhotoTile({
           {photo.caption}
         </div>
       )}
+      {/* Proposal toggle. Solid accent when on (always visible — the
+          contractor needs to see at a glance what the client will see),
+          ghosted until hover/touch when off. */}
+      <button
+        type="button"
+        disabled={toggling}
+        onClick={() => startToggle(async () => onToggleProposal())}
+        className={`absolute top-1 left-1 px-1.5 h-6 rounded-full text-[10px] font-medium flex items-center gap-1 transition-opacity disabled:opacity-40 ${
+          photo.showOnProposal
+            ? "bg-accent text-white"
+            : "bg-black/60 text-white opacity-0 group-hover:opacity-100 [@media(hover:none)]:opacity-70"
+        }`}
+        title={
+          photo.showOnProposal
+            ? "Shown on the client proposal — click to hide"
+            : "Hidden from the client proposal — click to show"
+        }
+      >
+        {photo.showOnProposal ? "✓ On proposal" : "+ Proposal"}
+      </button>
       <button
         type="button"
         disabled={pending}
