@@ -1,7 +1,25 @@
 import Link from "next/link"
-import { createProject } from "../actions"
+import { auth } from "@/auth"
+import { prisma } from "@/lib/db"
+import { createProject, createFromTemplate } from "../actions"
 
-export default function NewProjectPage() {
+export default async function NewProjectPage() {
+  const session = await auth()
+  const user = session?.user?.email
+    ? await prisma.user.findUnique({ where: { email: session.user.email } })
+    : null
+  const templates = user
+    ? await prisma.project.findMany({
+        where: { userId: user.id, isTemplate: true },
+        orderBy: { updatedAt: "desc" },
+        select: {
+          id: true,
+          name: true,
+          sections: { select: { _count: { select: { lineItems: true } } } },
+        },
+      })
+    : []
+
   return (
     <div className="max-w-lg mx-auto">
       <div className="mb-6">
@@ -12,6 +30,42 @@ export default function NewProjectPage() {
 
       <h1 className="text-xl font-bold text-gray-900 mb-1">New Project</h1>
       <p className="text-sm text-gray-500 mb-6">Start a new estimate. You can edit anything later.</p>
+
+      {templates.length > 0 && (
+        <div className="mb-6 bg-accent-soft/40 border border-accent rounded-lg p-4">
+          <p className="text-sm font-medium text-foreground mb-2">
+            ⚡ Start from a template
+          </p>
+          <ul className="space-y-1.5">
+            {templates.map((t) => {
+              const itemCount = t.sections.reduce(
+                (sum, s) => sum + s._count.lineItems,
+                0,
+              )
+              return (
+                <li key={t.id}>
+                  <form action={createFromTemplate.bind(null, t.id)}>
+                    <button
+                      type="submit"
+                      className="w-full text-left px-3 py-2 bg-surface border border-border rounded-md text-sm hover:border-accent transition-colors flex items-center justify-between gap-2"
+                    >
+                      <span className="text-foreground truncate">{t.name}</span>
+                      <span className="text-xs text-foreground-soft tabular-nums shrink-0">
+                        {t.sections.length} section{t.sections.length === 1 ? "" : "s"} ·{" "}
+                        {itemCount} item{itemCount === 1 ? "" : "s"} →
+                      </span>
+                    </button>
+                  </form>
+                </li>
+              )
+            })}
+          </ul>
+          <p className="text-xs text-foreground-soft mt-2">
+            Sections, line items, and rooms are copied; you fill in the client below
+            or on the project page.
+          </p>
+        </div>
+      )}
 
       <form action={createProject} className="space-y-4 bg-white border border-gray-200 rounded-lg p-6">
         <div>

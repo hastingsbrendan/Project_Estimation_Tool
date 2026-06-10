@@ -4,6 +4,8 @@ import { prisma } from "@/lib/db"
 import { calcEstimate, formatCurrency } from "@/lib/calc"
 import { StatusBadge } from "@/components/ui/status-badge"
 import { TabPillLink } from "@/components/ui/tab-pill"
+import { ConfirmSubmitButton } from "../confirm-submit-button"
+import { createFromTemplate, deleteTemplate } from "./actions"
 
 export default async function ProjectsPage({
   searchParams,
@@ -11,7 +13,10 @@ export default async function ProjectsPage({
   searchParams: Promise<{ view?: string }>
 }) {
   const sp = await searchParams
-  const showArchived = sp?.view === "archived"
+  const view =
+    sp?.view === "archived" ? "archived" : sp?.view === "templates" ? "templates" : "active"
+  const showArchived = view === "archived"
+  const showTemplates = view === "templates"
 
   const session = await auth()
   const user = session?.user?.email
@@ -20,7 +25,9 @@ export default async function ProjectsPage({
 
   const projects = user
     ? await prisma.project.findMany({
-        where: { userId: user.id, archived: showArchived },
+        where: showTemplates
+          ? { userId: user.id, isTemplate: true }
+          : { userId: user.id, archived: showArchived, isTemplate: false },
         orderBy: { updatedAt: "desc" },
         include: {
           sections: { include: { lineItems: true } },
@@ -28,17 +35,22 @@ export default async function ProjectsPage({
       })
     : []
 
-  const archivedCount = user
-    ? await prisma.project.count({ where: { userId: user.id, archived: true } })
-    : 0
+  const [archivedCount, templateCount] = user
+    ? await Promise.all([
+        prisma.project.count({
+          where: { userId: user.id, archived: true, isTemplate: false },
+        }),
+        prisma.project.count({ where: { userId: user.id, isTemplate: true } }),
+      ])
+    : [0, 0]
 
   return (
     <>
       <div className="flex items-center justify-between mb-2">
         <h1 className="text-xl font-bold text-foreground">
-          {showArchived ? "Archived projects" : "Projects"}
+          {showArchived ? "Archived projects" : showTemplates ? "Templates" : "Projects"}
         </h1>
-        {!showArchived && (
+        {view === "active" && (
           <Link
             href="/projects/new"
             className="inline-flex items-center gap-2 bg-accent text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-accent-hover transition-colors"
@@ -50,8 +62,14 @@ export default async function ProjectsPage({
 
       {/* Filter pills — same dialect as Receipts / Subs / Catalog. */}
       <div className="flex items-center gap-2 mb-6">
-        <TabPillLink href="/projects" active={!showArchived}>
+        <TabPillLink href="/projects" active={view === "active"}>
           Active
+        </TabPillLink>
+        <TabPillLink href="/projects?view=templates" active={showTemplates}>
+          Templates
+          {templateCount > 0 && (
+            <span className="opacity-60 tabular-nums">({templateCount})</span>
+          )}
         </TabPillLink>
         <TabPillLink href="/projects?view=archived" active={showArchived}>
           Archived
@@ -67,14 +85,20 @@ export default async function ProjectsPage({
             <span className="text-3xl">{showArchived ? "📦" : "📋"}</span>
           </div>
           <h2 className="text-lg font-semibold text-foreground mb-2">
-            {showArchived ? "No archived projects" : "No projects yet"}
+            {showArchived
+              ? "No archived projects"
+              : showTemplates
+                ? "No templates yet"
+                : "No projects yet"}
           </h2>
           <p className="text-sm text-foreground-muted max-w-xs mx-auto mb-6">
             {showArchived
               ? "Projects you archive will show up here."
-              : "Create your first project to start building an estimate."}
+              : showTemplates
+                ? "Open any project and click “Save as template” to reuse its sections and line items on future jobs."
+                : "Create your first project to start building an estimate."}
           </p>
-          {!showArchived && (
+          {!showArchived && !showTemplates && (
             <Link
               href="/projects/new"
               className="inline-flex items-center gap-2 bg-accent text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-accent-hover transition-colors"
@@ -102,24 +126,47 @@ export default async function ProjectsPage({
 
             return (
               <li key={project.id}>
-                <Link
-                  href={`/projects/${project.id}`}
-                  className="flex items-center justify-between px-4 py-4 hover:bg-surface-muted transition-colors"
-                >
-                  <div className="min-w-0 flex-1">
+                <div className="flex items-center justify-between px-4 py-4 hover:bg-surface-muted transition-colors gap-3">
+                  <Link href={`/projects/${project.id}`} className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 mb-0.5">
                       <p className="font-medium text-foreground truncate">{project.name}</p>
-                      <StatusBadge status={project.status} className="uppercase tracking-wider" />
+                      {showTemplates ? (
+                        <StatusBadge status="draft" label="Template" className="uppercase tracking-wider" />
+                      ) : (
+                        <StatusBadge status={project.status} className="uppercase tracking-wider" />
+                      )}
                     </div>
                     <p className="text-sm text-foreground-muted truncate">
-                      {project.clientName ?? "No client"}
+                      {showTemplates
+                        ? `${project.sections.length} section${project.sections.length === 1 ? "" : "s"}`
+                        : project.clientName ?? "No client"}
                       {itemCount > 0 && ` · ${itemCount} item${itemCount === 1 ? "" : "s"}`}
                     </p>
-                  </div>
-                  <div className="ml-4 text-right">
+                  </Link>
+                  <div className="ml-2 text-right shrink-0 flex items-center gap-3">
                     <p className="font-semibold text-foreground tabular-nums">{formatCurrency(total)}</p>
+                    {showTemplates && (
+                      <>
+                        <form action={createFromTemplate.bind(null, project.id)}>
+                          <button
+                            type="submit"
+                            className="px-3 py-1.5 bg-accent text-white rounded text-xs font-medium hover:bg-accent-hover"
+                          >
+                            Use →
+                          </button>
+                        </form>
+                        <form action={deleteTemplate.bind(null, project.id)}>
+                          <ConfirmSubmitButton
+                            confirmText={`Delete template "${project.name}"?`}
+                            className="text-xs text-foreground-soft hover:text-danger"
+                          >
+                            ✕
+                          </ConfirmSubmitButton>
+                        </form>
+                      </>
+                    )}
                   </div>
-                </Link>
+                </div>
               </li>
             )
           })}

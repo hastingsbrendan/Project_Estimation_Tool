@@ -4,7 +4,7 @@ import { auth } from "@/auth"
 import { prisma } from "@/lib/db"
 import { calcEstimate, formatCurrency, lineItemTotal } from "@/lib/calc"
 import { roomMetrics } from "@/lib/room"
-import { archiveProject, deleteProject, duplicateProject } from "../actions"
+import { archiveProject, deleteProject, duplicateProject, saveAsTemplate } from "../actions"
 import {
   addSection,
   addLineItem,
@@ -143,6 +143,21 @@ export default async function ProjectDetailPage({
 
   const currentStatus = STATUSES.find((s) => s.value === project.status) ?? STATUSES[0]
   const sectionIds = project.sections.map((s) => s.id)
+
+  // Room measurements → one-tap quantity fills in the material picker.
+  // roomMetrics was previously computed for display only; this is what
+  // makes the walkthrough measurements actually drive the estimate.
+  const roomFills = project.rooms.flatMap((room) => {
+    const m = roomMetrics(room)
+    const fills: { label: string; qty: number; unit: string }[] = []
+    if (m.floorAreaSqft != null)
+      fills.push({ label: `${room.name} · floor ${m.floorAreaSqft} sqft`, qty: m.floorAreaSqft, unit: "sqft" })
+    if (m.wallAreaSqft != null)
+      fills.push({ label: `${room.name} · walls ${m.wallAreaSqft} sqft`, qty: m.wallAreaSqft, unit: "sqft" })
+    if (m.perimeterFt != null)
+      fills.push({ label: `${room.name} · perimeter ${m.perimeterFt} lf`, qty: m.perimeterFt, unit: "lf" })
+    return fills
+  })
 
   const catalogIsEmpty = catalog.length === 0
 
@@ -314,6 +329,16 @@ export default async function ProjectDetailPage({
                   title="Create a copy of this project"
                 >
                   ⎘ Duplicate
+                </button>
+              </form>
+              <span className="text-foreground-soft">·</span>
+              <form action={saveAsTemplate.bind(null, project.id)}>
+                <button
+                  type="submit"
+                  className="text-foreground-muted hover:text-foreground transition-colors"
+                  title="Snapshot this project's sections + line items as a reusable template (client info is stripped)"
+                >
+                  ⭐ Save as template
                 </button>
               </form>
               <span className="text-foreground-soft">·</span>
@@ -673,6 +698,7 @@ export default async function ProjectDetailPage({
                         action={addLineItem.bind(null, project.id, section.id)}
                         catalog={catalog}
                         lockKind="material"
+                        roomFills={roomFills}
                       />
                     </div>
                   </div>

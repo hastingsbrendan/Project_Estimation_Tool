@@ -26,6 +26,8 @@ export type CatalogPickerItem = {
  * `onAfterAdd` fires after a successful submit with the server result so
  * the parent can chain follow-up UI (e.g. surfacing service presets).
  */
+export type RoomFill = { label: string; qty: number; unit: string }
+
 export function AddLineItemForm({
   action,
   catalog,
@@ -33,6 +35,7 @@ export function AddLineItemForm({
   onAfterAdd,
   placeholder,
   buttonLabel,
+  roomFills,
 }: {
   action: (formData: FormData) => Promise<AddLineItemResult | AddLineItemError>
   catalog: CatalogPickerItem[]
@@ -40,14 +43,18 @@ export function AddLineItemForm({
   onAfterAdd?: (result: AddLineItemResult) => void
   placeholder?: string
   buttonLabel?: string
+  /** Room measurement shortcuts ("Kitchen · floor 120 sqft") — tap to fill qty+unit. */
+  roomFills?: RoomFill[]
 }) {
   const [error, setError] = useState<string>("")
+  const [pending, setPending] = useState(false)
   const id = useId()
   const [query, setQuery] = useState("")
   const [tradeFilter, setTradeFilter] = useState<string>("")
   const [open, setOpen] = useState(false)
   const [selectedId, setSelectedId] = useState<string>("")
   const descRef = useRef<HTMLInputElement>(null)
+  const qtyRef = useRef<HTMLInputElement>(null)
   const unitRef = useRef<HTMLInputElement>(null)
   const priceRef = useRef<HTMLInputElement>(null)
   const kindRef = useRef<HTMLSelectElement>(null)
@@ -109,17 +116,22 @@ export function AddLineItemForm({
         // previously-typed value or stale ref.
         if (lockKind) fd.set("kind", lockKind)
         setError("")
-        const result = await action(fd)
-        if (!result.ok) {
-          setError(result.error)
-          setTimeout(() => setError(""), 4000)
-          return
+        setPending(true)
+        try {
+          const result = await action(fd)
+          if (!result.ok) {
+            setError(result.error)
+            setTimeout(() => setError(""), 4000)
+            return
+          }
+          formRef.current?.reset()
+          setQuery("")
+          setSelectedId("")
+          setOpen(false)
+          onAfterAdd?.(result)
+        } finally {
+          setPending(false)
         }
-        formRef.current?.reset()
-        setQuery("")
-        setSelectedId("")
-        setOpen(false)
-        onAfterAdd?.(result)
       }}
       className="px-4 py-3 border-t border-border bg-surface-muted/50 rounded-b-lg"
     >
@@ -206,6 +218,7 @@ export function AddLineItemForm({
         <div className="col-span-3 sm:col-span-1">
           <label className="block text-xs text-foreground-muted mb-0.5">Qty</label>
           <input
+            ref={qtyRef}
             name="quantity"
             type="number"
             step="0.01"
@@ -250,12 +263,39 @@ export function AddLineItemForm({
         <div className="col-span-12 sm:col-span-1">
           <button
             type="submit"
-            className="w-full px-2 py-1 bg-accent text-white rounded text-xs font-medium hover:bg-accent-hover"
+            disabled={pending}
+            className="w-full px-2 py-1 bg-accent text-white rounded text-xs font-medium hover:bg-accent-hover disabled:opacity-60"
           >
-            {buttonLabel ?? "Add"}
+            {pending ? "…" : (buttonLabel ?? "Add")}
           </button>
         </div>
       </div>
+      {roomFills && roomFills.length > 0 && (
+        <div className="mt-2 flex items-center gap-2">
+          <span className="text-[10px] uppercase tracking-wider text-foreground-soft">
+            📐 Qty from room
+          </span>
+          <select
+            value=""
+            onChange={(e) => {
+              const fill = roomFills[Number(e.target.value)]
+              if (!fill) return
+              if (qtyRef.current) qtyRef.current.value = String(fill.qty)
+              if (unitRef.current) unitRef.current.value = fill.unit
+            }}
+            className="text-xs border border-border rounded px-2 py-1 bg-surface text-foreground-muted focus:outline-none focus:ring-1 focus:ring-accent max-w-[16rem]"
+          >
+            <option value="" disabled>
+              Pick a measurement…
+            </option>
+            {roomFills.map((f, i) => (
+              <option key={i} value={i}>
+                {f.label}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
       {error && (
         <p
           aria-live="polite"

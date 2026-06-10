@@ -71,6 +71,10 @@ model Project {
   address         String?
   status          String   @default("draft") // draft | sent | accepted | rejected | won | lost
   archived        Boolean  @default(false) // hide from main dashboard, keeps data intact
+  // Reusable starting point ("Bathroom remodel — standard"). Templates are
+  // hidden from the normal project lists and offered on /projects/new;
+  // "use template" clones sections/line items/rooms into a fresh project.
+  isTemplate      Boolean  @default(false)
   taxRate         Float    @default(0) // percent (0-100); applies to materials only
   markupPct       Float    @default(0) // percent (0-100); applies to subtotal
   notes           String? // free-form jobsite notes
