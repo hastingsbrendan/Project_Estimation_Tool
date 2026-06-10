@@ -1,14 +1,36 @@
 # Migrations runbook
 
-## TL;DR
+## TL;DR (UPDATED — now automated via CI)
 
-When you change `prisma/schema.prisma`, you MUST manually apply the migration
-to Turso (production). `prisma migrate deploy` does not speak `libsql://`,
-so it can't do it for you. Vercel deploys do not run migrations either.
+Migrations to Turso are applied automatically by GitHub Actions on every
+push to `main`: `.github/workflows/ci.yml` runs
+`scripts/migrate-prod.ts`, which tracks applied migrations in an
+`_applied_migrations` table on Turso and applies anything new — AFTER
+the unit + E2E suites pass.
 
-Forgetting this → the next deploy 500s every page that reads the changed
-table, because Prisma generates `SELECT col_a, col_b, col_c` from the new
-schema and Turso doesn't have those columns yet.
+**One-time setup (required before the automation works):**
+
+1. Add repo secrets on GitHub (Settings → Secrets and variables → Actions):
+   - `TURSO_DATABASE_URL` — the `libsql://…` URL
+   - `TURSO_AUTH_TOKEN` — a Turso auth token
+2. Baseline the existing prod DB (records the already-hand-applied
+   migrations without re-running them):
+
+   ```bash
+   DATABASE_URL=libsql://... DATABASE_AUTH_TOKEN=... \
+     npx tsx scripts/migrate-prod.ts --baseline
+   ```
+
+Until both steps are done, the CI migrate job logs a warning and skips —
+and you're back on the manual flow below.
+
+**Drift detection:** `/api/health` now reports `schema: "ok" | "drift"`,
+comparing the DB's applied-migrations high-water mark (or, pre-baseline,
+a probe of the newest migration's column) against
+`lib/migrations-meta.ts:LATEST_MIGRATION`. Point an uptime monitor at it
+(see TRIAGE.md) and a forgotten migration emails you instead of 500ing
+users. When adding a migration, bump `LATEST_MIGRATION` — a unit test
+fails if you forget.
 
 ## Local flow
 
@@ -18,10 +40,11 @@ schema and Turso doesn't have those columns yet.
 npx prisma migrate dev --name <description>
 
 # 3. Apply to local dev.db (the migrate dev command above does this)
-# 4. Sanity-test the change locally (npm run dev)
+# 4. Update LATEST_MIGRATION in lib/migrations-meta.ts
+# 5. Sanity-test the change locally (npm run dev)
 ```
 
-## Production flow (Turso)
+## Manual production flow (fallback when CI secrets aren't set)
 
 After committing the migration, BEFORE the next `git push`:
 
@@ -34,11 +57,18 @@ turso db shell <db-name>
 ```
 
 Or via the dashboard at https://app.turso.tech → database → SQL console →
-paste the statements → run.
+paste the statements → run. If the DB has been baselined, also record it:
+
+```sql
+INSERT INTO _applied_migrations (name, applied_at)
+VALUES ('<migration_dir_name>', datetime('now'));
+```
 
 ## Verifying the schemas match
 
 ```bash
+# Quickest: hit /api/health and read the `schema` field.
+
 # Local
 sqlite3 prisma/dev.db ".schema Project"
 
@@ -46,25 +76,9 @@ sqlite3 prisma/dev.db ".schema Project"
 turso db shell <db-name> ".schema Project"
 ```
 
-The output should be identical (modulo INDEX statements that may have run
-in a different order).
-
 ## When you forget
 
 You'll see "This page couldn't load. A server error occurred." on every
-page that touches the changed table, with an ERROR id at the bottom. Apply
-the missing migration to Turso — the next request fixes itself, no
-redeploy needed.
-
-## Why not automate this?
-
-Could put `prisma migrate deploy` in `vercel-build`, but it doesn't
-support `libsql://`. The Prisma + Turso integration is via the runtime
-`@prisma/adapter-libsql` only. Real fixes for the future:
-
-1. Migrate to Atlas, which speaks libsql via the same adapter.
-2. Add a deploy step that calls `turso db shell ... < migration.sql` for
-   each unapplied migration. Needs `TURSO_AUTH_TOKEN` in Vercel build env
-   and tracking what's already applied.
-
-For now — manual, with this runbook.
+page that touches the changed table. `/api/health` will say
+`schema: "drift"` with the missing migration's name. Apply it (CI re-run
+or manual paste) — the next request fixes itself, no redeploy needed.

@@ -122,6 +122,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       headers: {
         "Content-Type": "application/json",
         Accept: "application/json",
+        // Lets the server reject too-old sideloaded extensions with a
+        // 426 instead of failing mid-cart-run on a changed contract.
+        "X-Extension-Version": VERSION,
       },
       body: message.body ? JSON.stringify(message.body) : undefined,
     })

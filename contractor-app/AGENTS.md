@@ -4,11 +4,11 @@
 This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
 <!-- END:nextjs-agent-rules -->
 
-# Schema changes need manual Turso migration
+# Schema changes: CI auto-applies to Turso (after one-time setup)
 
-Production runs on Turso (libsql). `prisma migrate deploy` does NOT speak `libsql://`, and the Vercel build does NOT apply migrations. If you change `prisma/schema.prisma` and create a migration, you MUST apply the SQL to Turso by hand (Turso dashboard SQL console or `turso db shell`) before/immediately after the next deploy — otherwise every page that reads the changed table 500s with "This page couldn't load. A server error occurred."
+Production runs on Turso (libsql). `prisma migrate deploy` does NOT speak `libsql://` — instead, GitHub Actions (`.github/workflows/ci.yml` at repo root) runs `scripts/migrate-prod.ts` on every push to `main` after tests pass, tracking applied migrations in an `_applied_migrations` table on Turso. Requires `TURSO_DATABASE_URL` + `TURSO_AUTH_TOKEN` repo secrets and a one-time `--baseline` run; until then the CI job skips with a warning and migrations must be applied by hand (old runbook still in `MIGRATIONS.md`).
 
-Full runbook: `MIGRATIONS.md`. Always remind the user to apply the SQL before pushing schema changes.
+When you add a migration, ALSO bump `LATEST_MIGRATION` in `lib/migrations-meta.ts` — a unit test fails if you forget, and `/api/health` uses it to report `schema: "drift"` when prod is behind.
 
 # Errors are observable via /api/health and logged scopes
 

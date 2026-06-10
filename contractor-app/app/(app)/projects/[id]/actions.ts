@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/db"
 import { revalidatePath } from "next/cache"
 import { requireProject } from "@/lib/auth-helpers"
+import { logError } from "@/lib/log"
 
 export async function addSection(projectId: string, formData: FormData): Promise<void> {
   await requireProject(projectId)
@@ -413,21 +414,26 @@ export async function reorderSections(
   projectId: string,
   sectionIds: string[],
 ): Promise<void> {
-  await requireProject(projectId)
-  // Verify every id belongs to this project before writing anything.
-  const owned = await prisma.section.findMany({
-    where: { projectId },
-    select: { id: true },
-  })
-  const ownedIds = new Set(owned.map((s) => s.id))
-  if (!sectionIds.every((id) => ownedIds.has(id))) {
-    throw new Error("Section ownership mismatch")
+  try {
+    await requireProject(projectId)
+    // Verify every id belongs to this project before writing anything.
+    const owned = await prisma.section.findMany({
+      where: { projectId },
+      select: { id: true },
+    })
+    const ownedIds = new Set(owned.map((s) => s.id))
+    if (!sectionIds.every((id) => ownedIds.has(id))) {
+      throw new Error("Section ownership mismatch")
+    }
+    await prisma.$transaction(
+      sectionIds.map((id, i) =>
+        prisma.section.update({ where: { id }, data: { order: i } }),
+      ),
+    )
+  } catch (e) {
+    logError("reorderSections", e, { projectId, count: sectionIds.length })
+    throw e
   }
-  await prisma.$transaction(
-    sectionIds.map((id, i) =>
-      prisma.section.update({ where: { id }, data: { order: i } }),
-    ),
-  )
   revalidatePath(`/projects/${projectId}`)
 }
 
@@ -436,24 +442,29 @@ export async function reorderLineItems(
   sectionId: string,
   lineItemIds: string[],
 ): Promise<void> {
-  await requireProject(projectId)
-  const section = await prisma.section.findFirst({
-    where: { id: sectionId, projectId },
-  })
-  if (!section) throw new Error("Section not found")
-  const owned = await prisma.lineItem.findMany({
-    where: { sectionId },
-    select: { id: true },
-  })
-  const ownedIds = new Set(owned.map((li) => li.id))
-  if (!lineItemIds.every((id) => ownedIds.has(id))) {
-    throw new Error("Line item ownership mismatch")
+  try {
+    await requireProject(projectId)
+    const section = await prisma.section.findFirst({
+      where: { id: sectionId, projectId },
+    })
+    if (!section) throw new Error("Section not found")
+    const owned = await prisma.lineItem.findMany({
+      where: { sectionId },
+      select: { id: true },
+    })
+    const ownedIds = new Set(owned.map((li) => li.id))
+    if (!lineItemIds.every((id) => ownedIds.has(id))) {
+      throw new Error("Line item ownership mismatch")
+    }
+    await prisma.$transaction(
+      lineItemIds.map((id, i) =>
+        prisma.lineItem.update({ where: { id }, data: { order: i } }),
+      ),
+    )
+  } catch (e) {
+    logError("reorderLineItems", e, { projectId, sectionId, count: lineItemIds.length })
+    throw e
   }
-  await prisma.$transaction(
-    lineItemIds.map((id, i) =>
-      prisma.lineItem.update({ where: { id }, data: { order: i } }),
-    ),
-  )
   revalidatePath(`/projects/${projectId}`)
 }
 

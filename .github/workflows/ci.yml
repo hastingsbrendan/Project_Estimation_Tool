@@ -1,0 +1,83 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  app:
+    name: contractor-app (unit + e2e)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: contractor-app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: contractor-app/package-lock.json
+      - run: npm ci
+      - run: npx prisma generate
+      - name: Unit tests
+        run: npm test -- --run
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+      - name: E2E tests (production build)
+        run: npm run test:e2e
+      - name: Upload Playwright traces on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-traces
+          path: contractor-app/test-results/
+          retention-days: 7
+
+  extension:
+    name: extension (typecheck + unit + build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: extension
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: extension/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+
+  migrate-prod:
+    name: apply migrations to Turso
+    # Only after tests pass, only on main, and only when the repo has
+    # the Turso secrets configured (PRs from forks won't).
+    needs: [app]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: contractor-app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: contractor-app/package-lock.json
+      - run: npm ci
+      - name: Run migration script
+        env:
+          DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
+          DATABASE_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::warning::TURSO_DATABASE_URL secret not set — skipping prod migration. Schema changes must be applied manually until secrets are configured."
+            exit 0
+          fi
+          npx tsx scripts/migrate-prod.ts

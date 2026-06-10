@@ -2,6 +2,7 @@
 
 import { useId, useMemo, useRef, useState } from "react"
 import type { AddLineItemError, AddLineItemResult } from "./actions"
+import { tradeLabel } from "@/lib/catalog/trades"
 
 export type CatalogPickerItem = {
   id: string
@@ -10,15 +11,6 @@ export type CatalogPickerItem = {
   unit: string
   unitPrice: number
   kind: string
-}
-
-const TRADE_LABELS: Record<string, string> = {
-  demo: "Demo",
-  framing: "Framing",
-  plumbing: "Plumbing",
-  electrical: "Electrical",
-  drywall: "Drywall",
-  finish: "Finish",
 }
 
 /**
@@ -66,6 +58,16 @@ export function AddLineItemForm({
     () => (lockKind ? catalog.filter((c) => c.kind === lockKind) : catalog),
     [catalog, lockKind],
   )
+
+  // Trade filter pills derive from the trades ACTUALLY PRESENT in this
+  // user's catalog (was a hardcoded 6-trade list that silently hid
+  // painting/tile/flooring/HVAC items from filtering after the taxonomy
+  // grew to 13). Deriving also keeps the pill row short for users whose
+  // catalog only spans a few trades.
+  const presentTrades = useMemo(() => {
+    const set = new Set(scopedCatalog.map((c) => c.trade))
+    return [...set].sort()
+  }, [scopedCatalog])
 
   const matches = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -160,7 +162,7 @@ export function AddLineItemForm({
                 >
                   All
                 </button>
-                {Object.entries(TRADE_LABELS).map(([key, label]) => (
+                {presentTrades.map((key) => (
                   <button
                     key={key}
                     type="button"
@@ -172,7 +174,7 @@ export function AddLineItemForm({
                         : "bg-surface text-foreground-muted hover:bg-accent-soft"
                     }`}
                   >
-                    {label}
+                    {tradeLabel(key)}
                   </button>
                 ))}
               </div>

@@ -2,6 +2,7 @@ import { auth } from "@/auth"
 import { prisma } from "@/lib/db"
 import { aggregateMaterials, type MaterialRow } from "@/lib/materials"
 import { logError, logInfo } from "@/lib/log"
+import { checkExtensionVersion } from "@/lib/api-v1/extension-version"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -19,10 +20,12 @@ const SCOPE = "/api/v1/projects/[id]/cart-payload"
  * Future clients (CLI, mobile, server agent) can use the same endpoint.
  */
 export async function GET(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const started = Date.now()
+  const versionBlock = checkExtensionVersion(req)
+  if (versionBlock) return versionBlock
   const { id } = await params
   try {
     const session = await auth()

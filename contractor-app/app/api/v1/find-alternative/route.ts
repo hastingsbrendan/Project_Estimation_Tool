@@ -2,6 +2,7 @@ import { auth } from "@/auth"
 import { findAlternatives } from "@/lib/ai/material-matcher"
 import { logError, logInfo } from "@/lib/log"
 import { parseFindAlternativeBody } from "@/lib/api-v1/parsers"
+import { checkExtensionVersion } from "@/lib/api-v1/extension-version"
 
 export const runtime = "nodejs"
 export const maxDuration = 30
@@ -23,6 +24,8 @@ const SCOPE = "/api/v1/find-alternative"
  */
 export async function POST(req: Request) {
   const started = Date.now()
+  const versionBlock = checkExtensionVersion(req)
+  if (versionBlock) return versionBlock
   const session = await auth()
   if (!session?.user?.email) {
     return Response.json({ error: "Unauthorized" }, { status: 401 })

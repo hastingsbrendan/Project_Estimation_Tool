@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db"
 import { logError } from "@/lib/log"
+import { LATEST_MIGRATION, LATEST_COLUMN_PROBE } from "@/lib/migrations-meta"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -36,9 +37,51 @@ export async function GET() {
     logError("/api/health", e)
   }
 
+  // Schema-drift detection. Deployed code expects LATEST_MIGRATION to
+  // be applied; a forgotten Turso migration is the #1 historical cause
+  // of prod 500s. Two probes, cheapest-first:
+  //   1. _applied_migrations high-water mark (written by
+  //      scripts/migrate-prod.ts) vs LATEST_MIGRATION
+  //   2. pragma_table_info fallback for DBs that predate the tracking
+  //      table — checks the newest migration's signature column.
+  let schema: "ok" | "drift" | "unknown" = "unknown"
+  let schemaDetail: string | null = null
+  if (db === "ok") {
+    try {
+      const applied = (await prisma.$queryRawUnsafe(
+        "SELECT name FROM _applied_migrations ORDER BY name DESC LIMIT 1",
+      )) as Array<{ name: string }>
+      const newest = applied[0]?.name ?? null
+      if (newest === LATEST_MIGRATION) {
+        schema = "ok"
+      } else {
+        schema = "drift"
+        schemaDetail = `applied=${newest ?? "none"} expected=${LATEST_MIGRATION}`
+      }
+    } catch {
+      // Tracking table missing (pre-baseline DB). Fall back to probing
+      // the newest migration's column directly.
+      try {
+        const cols = (await prisma.$queryRawUnsafe(
+          `SELECT name FROM pragma_table_info('${LATEST_COLUMN_PROBE.table}') WHERE name = '${LATEST_COLUMN_PROBE.column}'`,
+        )) as Array<{ name: string }>
+        if (cols.length > 0) {
+          schema = "ok"
+          schemaDetail = "unbaselined (run scripts/migrate-prod.ts --baseline)"
+        } else {
+          schema = "drift"
+          schemaDetail = `missing ${LATEST_COLUMN_PROBE.table}.${LATEST_COLUMN_PROBE.column} — apply ${LATEST_MIGRATION}`
+        }
+      } catch (e) {
+        schemaDetail = e instanceof Error ? e.message : "probe failed"
+        logError("/api/health", e, { stage: "schema-probe" })
+      }
+    }
+  }
+
   const overall: "ok" | "degraded" | "down" =
     db === "ok"
-      ? Object.values(env).every(Boolean)
+      ? Object.values(env).every(Boolean) && schema !== "drift"
         ? "ok"
         : "degraded"
       : "down"
@@ -49,6 +92,8 @@ export async function GET() {
       status: overall,
       db,
       dbError,
+      schema,
+      schemaDetail,
       env,
       timestamp: new Date().toISOString(),
     },

@@ -64,6 +64,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   },
   session: {
     strategy: "database",
+    // 30 days. Magic-link via Resend is the only sign-in path, so a
+    // transient Resend outage would otherwise lock users out — long
+    // sessions mean an outage only blocks brand-new sign-ins.
+    maxAge: 30 * 24 * 60 * 60,
   },
   events: {
     /**

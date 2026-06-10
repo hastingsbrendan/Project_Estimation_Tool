@@ -21,6 +21,7 @@ import {
 import { addRoom, updateRoom, deleteRoom } from "./room-actions"
 import { uploadPhoto, deletePhoto, updatePhotoCaption } from "./photo-actions"
 import { AutoSaveForm } from "./auto-form"
+import { ConfirmSubmitButton } from "../../confirm-submit-button"
 import { AddLineItemForm } from "./catalog-picker"
 import { CatalogEmptyBanner } from "./catalog-empty-banner"
 import { loadDefaultCatalog } from "../../catalog/actions"
@@ -563,13 +564,15 @@ export default async function ProjectDetailPage({
                         {formatCurrency(sectionTotal)}
                       </span>
                       <form action={deleteSection.bind(null, project.id, section.id)}>
-                        <button
-                          type="submit"
+                        {/* Sections cascade-delete every line item under
+                            them — the highest-value object on this page.
+                            Never allow a one-tap delete. */}
+                        <ConfirmSubmitButton
+                          confirmText={`Delete section "${section.name}" and all ${section.lineItems.length} line item${section.lineItems.length === 1 ? "" : "s"} in it? This cannot be undone.`}
                           className="text-xs text-foreground-soft hover:text-danger transition-colors"
-                          title="Delete section"
                         >
                           ✕
-                        </button>
+                        </ConfirmSubmitButton>
                       </form>
                     </div>
 
